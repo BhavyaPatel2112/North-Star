@@ -26,6 +26,8 @@ PROCESSED_DIR = DATA_DIR / "processed"
 # Secrets. They are None if missing, so code that does not need them still runs.
 DATABASE_URL = os.getenv("DATABASE_URL")
 OPENAQ_API_KEY = os.getenv("OPENAQ_API_KEY")
+DATAGOVIN_API_KEY = os.getenv("DATAGOVIN_API_KEY")
+WAQI_TOKEN = os.getenv("WAQI_TOKEN")
 
 # Rough box around Mumbai (south, west, north, east) in degrees, used to
 # limit downloads to the city.
