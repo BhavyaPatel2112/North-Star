@@ -5,6 +5,7 @@
 # Data handling
 pandas==3.0.6
 numpy==2.5.3
+pyarrow==25.0.1           # saves tables as compact Parquet files
 requests==2.34.2          # downloading from OpenAQ, Open-Meteo and others
 python-dotenv==1.2.4      # reads secrets from .env
 
