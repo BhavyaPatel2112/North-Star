@@ -1,0 +1,50 @@
+# ---------- macOS ----------
+.DS_Store
+
+# ---------- Xcode ----------
+# Per-user settings (window layout, breakpoints, personal schemes)
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+# Build output
+build/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+# Swift Package Manager
+.build/
+.swiftpm/
+# Secrets for the app (never commit)
+*.xcconfig.local
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ---------- Secrets and local config ----------
+.env
+.env.*
+!.env.example
+
+# ---------- Data and models (too big for Git) ----------
+Backend/data/
+*.parquet
+*.csv.gz
+*.pkl
+*.joblib
+
+# ---------- Editors ----------
+.vscode/
+.idea/
