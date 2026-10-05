@@ -1,0 +1,32 @@
+# North Star backend libraries. Install with:
+#   python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt
+# Versions are pinned so every machine (and the cloud server) gets the same setup.
+
+# Data handling
+pandas==3.0.6
+numpy==2.5.3
+pyarrow==25.0.1           # saves tables as compact Parquet files
+requests==2.34.2          # downloading from OpenAQ, Open-Meteo and others
+python-dotenv==1.2.4      # reads secrets from .env
+
+# Database (Supabase PostgreSQL with PostGIS)
+psycopg[binary]==3.3.6    # PostgreSQL driver
+SQLAlchemy==2.1.3         # Python layer over the database
+GeoAlchemy2==0.20.0       # adds PostGIS map types to SQLAlchemy
+
+# Maps and geography
+geopandas==1.2.0          # tables with map shapes
+shapely==2.1.2            # points, lines, polygons
+osmnx==2.1.1              # OpenStreetMap roads and land use
+h3==4.5.0                 # hexagon grid over Mumbai
+
+# Model
+scikit-learn==1.9.1       # evaluation and helpers
+lightgbm==4.7.0           # main pollution model
+
+# Server
+fastapi==0.142.2
+uvicorn[standard]==0.54.0 # runs the FastAPI app
+
+# Testing
+pytest==9.1.1
