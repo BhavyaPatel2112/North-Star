@@ -1,0 +1,39 @@
+station_id,name,operator,latitude,longitude,openaq_location_ids,notes
+1,Colaba,MPCB,18.9100,72.8200,6927,
+2,Worli (Siddharth Nagar),IITM,19.0001,72.8140,6959;60661,60661 is a duplicate feed of the same station (2021-2022)
+3,Sion,MPCB,19.0470,72.8746,6967,
+4,Kurla,MPCB,19.0863,72.8888,6945,
+5,Airport T2,MPCB,19.1008,72.8746,6948,
+6,Vile Parle West,MPCB,19.1086,72.8362,6987,
+7,Powai,MPCB,19.1375,72.9151,6956,
+8,Borivali East (MPCB),MPCB,19.2275,72.8644,6965,very patchy 2020-2021
+9,"Mahape, Navi Mumbai",MPCB,19.1135,73.0090,6943,
+10,"Pimpleshwar Mandir, Thane",MPCB,19.1921,72.9585,5593;3409322,old feed 2018-2022 and new feed 2025 onward
+11,Bandra (Kherwadi),MPCB,19.0632,72.8456,7850;3409486,"listed as Bandra (7850) until 2021, Kherwadi_Bandra East (3409486) from 2025, 70 m apart"
+12,Bandra Kurla Complex (IITM),IITM,19.0535,72.8464,11602;3409328,new ID 3409328 lists 19.0627 72.8461 (same as Bandra MPCB); kept old coordinates; verify
+13,Deonar,IITM,19.0495,72.9230,11604;3409329,
+14,Borivali East (IITM),IITM,19.2324,72.8689,11606,no SO2 sensor
+15,Malad West,IITM,19.1971,72.8220,11611,
+16,Chakala (Andheri East),IITM,19.1107,72.8608,12024,
+17,Bhandup West (Khindipada),IITM,19.1644,72.9283,12039,
+18,Mulund West,MPCB,19.1750,72.9419,12040,
+19,Kandivali East,MPCB,19.2058,72.8682,12044,
+20,"Nerul, Navi Mumbai",IITM,19.0440,73.0325,11612;3409330,no data after August 2022
+21,US Consulate (Bandra Kurla Complex),US State Department,19.0728,72.8826,8039,PM2.5 only; reported through AirNow
+22,Worli (MPCB),MPCB,18.9936,72.8128,3409323,
+23,Byculla,BMC,18.9767,72.8380,3409510,
+24,Sewri,BMC,19.0001,72.8567,3409513,
+25,Chembur,MPCB,19.0365,72.8954,3409483,
+26,Shivaji Nagar (Govandi),BMC,19.0605,72.9234,3409511,
+27,Bandra Kurla Complex (MPCB),MPCB,19.0659,72.8621,3409482,
+28,Ghatkopar,BMC,19.0837,72.9210,3409514,
+29,Mindspace (Malad West),MPCB,19.1879,72.8304,3409479,
+30,Kandivali West,BMC,19.2159,72.8317,3409512,
+31,"Bhayandar West, Mira-Bhayandar",MPCB,19.2965,72.8409,3409478,
+32,"Upvan Fort, Thane",MPCB,19.2223,72.9580,3409472,
+33,"Kasarvadavali, Thane",MPCB,19.2678,72.9718,3409469,
+34,"Vashi (Kopripada), Navi Mumbai",MPCB,19.0903,73.0142,3409477,
+35,"Sanpada, Navi Mumbai",MPCB,19.0576,73.0151,3409487,
+36,CBD Belapur,MPCB,19.0244,73.0407,3409476,
+37,"Gokul Nagar, Bhiwandi",MPCB,19.3091,73.0572,3409485,
+38,"Kalu Nagar, Dombivli",MPCB,19.2268,73.0788,6266795,data from March 2026
