@@ -1,6 +1,7 @@
 # Runs North Star's hourly jobs on GitHub's servers:
 # 1. the collector: CAMS and weather forecasts, OpenAQ station readings,
-#    fires, festival calendar, and health checks of every source
+#    fires, festival calendar, Google Air Quality at 20 comparison points,
+#    and health checks of every source
 # 2. predictions for every map hexagon for the next 36 hours
 #
 # Secrets (database address and API keys) are stored in the repository's
@@ -47,6 +48,9 @@ jobs:
           DATAGOVIN_API_KEY: ${{ secrets.DATAGOVIN_API_KEY }}
           WAQI_TOKEN: ${{ secrets.WAQI_TOKEN }}
           FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          GOOGLE_AIR_QUALITY_KEY: ${{ secrets.GOOGLE_AIR_QUALITY_KEY }}
+          # Monthly Google request limit (spending guard). Raise only on purpose.
+          GOOGLE_MONTHLY_LIMIT: "55000"
         run: python -m scripts.run_collector
 
       - name: Predict the map

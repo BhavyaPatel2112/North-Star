@@ -237,3 +237,34 @@ create table if not exists prediction_runs (
 
 alter table grid_predictions enable row level security;
 alter table prediction_runs  enable row level security;
+
+-- Requests sent to paid or limited APIs, per calendar month (spending guard).
+create table if not exists api_usage (
+    api      text not null,
+    month    date not null,
+    requests integer not null default 0,
+    primary key (api, month)
+);
+
+-- Google Air Quality readings at comparison points, next to our own model's
+-- prediction for the same hexagon and hour. Pollutants in µg/m³.
+create table if not exists google_readings (
+    point_name     text not null,
+    station_id     smallint references stations (station_id),
+    ts             timestamptz not null,
+    pm25           real,
+    pm10           real,
+    no2            real,
+    o3             real,
+    aqi_india      smallint,
+    category_india text,
+    model_pm25     real,
+    model_pm10     real,
+    model_no2      real,
+    model_o3       real,
+    fetched_at     timestamptz not null default now(),
+    primary key (point_name, ts)
+);
+
+alter table api_usage       enable row level security;
+alter table google_readings enable row level security;

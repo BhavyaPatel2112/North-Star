@@ -7,7 +7,9 @@ Each run does independent jobs. One failing never stops the others.
    (late uploads and corrections replace older values)
 4. Fires: the last 3 days of satellite fire detections (NASA FIRMS)
 5. Festival calendar: refreshed once a day, so newly published dates flow in
-6. Health check of every station source, saved to source_checks, so we
+6. Google Air Quality at 20 comparison points, saved next to our own prediction
+   (with a monthly request limit; see google_aq.py)
+7. Health check of every station source, saved to source_checks, so we
    know when a broken feed comes back
 
 The data.gov.in and World Air Quality Index readings are only checked and
@@ -25,7 +27,7 @@ import requests
 
 from northstar import config
 from northstar.clean import openaq as clean
-from northstar.collect import cams, firms, open_meteo
+from northstar.collect import cams, firms, google_aq, open_meteo
 from northstar.collect.events import refresh_events
 from northstar.collect.openaq_archive import download_recent
 from northstar.collect.stations import location_priority, openaq_location_ids
@@ -206,7 +208,8 @@ def check_waqi(conn: psycopg.Connection) -> str:
 
 # --- run everything -----------------------------------------------------------
 
-JOBS = [update_cams, update_weather, update_openaq, firms.update_recent, refresh_events, check_datagovin, check_waqi]
+JOBS = [update_cams, update_weather, update_openaq, firms.update_recent, refresh_events,
+        google_aq.update_google, check_datagovin, check_waqi]
 
 
 def run_once(conn: psycopg.Connection) -> list[str]:
