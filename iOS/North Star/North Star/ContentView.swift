@@ -1,17 +1,12 @@
 import SwiftUI
-import Playgrounds
 
+/// The app's root view. Version 1 has one screen: the sky.
 struct ContentView: View {
     var body: some View {
-        Text("Hello, world!")
-            .padding()
+        SkyScreen()
     }
 }
 
 #Preview {
     ContentView()
-}
-
-#Playground {
-    _ = 1 + 2
 }
