@@ -28,6 +28,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 OPENAQ_API_KEY = os.getenv("OPENAQ_API_KEY")
 DATAGOVIN_API_KEY = os.getenv("DATAGOVIN_API_KEY")
 WAQI_TOKEN = os.getenv("WAQI_TOKEN")
+FIRMS_MAP_KEY = os.getenv("FIRMS_MAP_KEY")
 
 # Rough box around Mumbai (south, west, north, east) in degrees, used to
 # limit downloads to the city.

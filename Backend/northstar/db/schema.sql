@@ -160,3 +160,80 @@ create table if not exists source_checks (
 );
 
 alter table source_checks enable row level security;
+
+-- The map's hexagons (H3 resolution 9, about 350 m across), with the weather
+-- and CAMS squares each one uses and its city-layout features.
+-- Features are stored as JSON so the list can grow without changing the table.
+create table if not exists grid_cells (
+    h3_index        text primary key,
+    location        geography(Point, 4326) not null,
+    area_name       text,
+    weather_cell_id smallint references weather_cells (cell_id),
+    cams_cell_id    smallint references cams_cells (cell_id),
+    features        jsonb not null
+);
+
+create index if not exists grid_cells_location_idx on grid_cells using gist (location);
+
+-- The same city-layout features measured at each station.
+create table if not exists station_features (
+    station_id smallint primary key references stations (station_id),
+    features   jsonb not null
+);
+
+alter table grid_cells       enable row level security;
+alter table station_features enable row level security;
+
+-- Festival and event calendar (refreshed automatically by the collector).
+-- Each festival type's first big day; the model measures days before and after.
+create table if not exists events (
+    event_date date not null,
+    event_type text not null,
+    name       text,
+    source     text,
+    fetched_at timestamptz not null default now(),
+    primary key (event_date, event_type)
+);
+
+alter table events enable row level security;
+
+-- Fire detections from NASA FIRMS satellites in a ~500 km box around Mumbai.
+-- frp = fire radiative power in megawatts (how big the fire is).
+create table if not exists fires (
+    satellite   text not null,
+    detected_at timestamptz not null,
+    latitude    real not null,
+    longitude   real not null,
+    frp         real,
+    confidence  text,
+    primary key (satellite, detected_at, latitude, longitude)
+);
+
+create index if not exists fires_detected_at_idx on fires (detected_at);
+
+alter table fires enable row level security;
+
+-- The latest predictions for every hexagon and hour (replaced every run).
+-- h3 is the hexagon id as a number (h3.str_to_int); values are whole µg/m³.
+create table if not exists grid_predictions (
+    h3   bigint not null,
+    ts   timestamptz not null,
+    pm25 smallint,
+    pm10 smallint,
+    no2  smallint,
+    o3   smallint,
+    primary key (h3, ts)
+);
+
+-- One row per prediction run: when it ran and what it was based on.
+create table if not exists prediction_runs (
+    run_at          timestamptz primary key default now(),
+    hours_from      timestamptz,
+    hours_to        timestamptz,
+    rows_written    integer,
+    models_trained  timestamptz,
+    station_data_at timestamptz
+);
+
+alter table grid_predictions enable row level security;
+alter table prediction_runs  enable row level security;

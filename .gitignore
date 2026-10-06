@@ -44,6 +44,8 @@ Backend/data/
 *.csv.gz
 *.pkl
 *.joblib
+# ...except the trained models the hourly job needs (about 1 MB each).
+!Backend/models/*.joblib
 
 # ---------- Editors ----------
 .vscode/

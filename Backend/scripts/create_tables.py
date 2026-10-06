@@ -51,7 +51,7 @@ def main() -> None:
                 )
 
         count = conn.execute("select count(*) from stations").fetchone()[0]
-        links = conn.execute("select count(*) from station_sources").fetchone()[0]
+        links = conn.execute("select count(*) from station_sources where source_id = %s", (OPENAQ_SOURCE_ID,)).fetchone()[0]
         print(f"Tables ready. {count} stations, {links} OpenAQ ids linked.")
 
 

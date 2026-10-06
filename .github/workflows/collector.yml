@@ -1,11 +1,12 @@
-# Runs the North Star hourly collector on GitHub's servers.
-# It updates CAMS and weather forecasts, re-checks the last 7 days of
-# OpenAQ station readings, and logs the health of every station source.
+# Runs North Star's hourly jobs on GitHub's servers:
+# 1. the collector: CAMS and weather forecasts, OpenAQ station readings,
+#    fires, festival calendar, and health checks of every source
+# 2. predictions for every map hexagon for the next 36 hours
 #
 # Secrets (database address and API keys) are stored in the repository's
 # Settings > Secrets and variables > Actions, never in this file.
 
-name: Hourly collector
+name: Hourly collector and predictions
 
 on:
   schedule:
@@ -42,4 +43,10 @@ jobs:
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
           DATAGOVIN_API_KEY: ${{ secrets.DATAGOVIN_API_KEY }}
           WAQI_TOKEN: ${{ secrets.WAQI_TOKEN }}
+          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
         run: python -m scripts.run_collector
+
+      - name: Predict the map
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m scripts.predict_grid
