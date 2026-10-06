@@ -7,5 +7,5 @@ import Foundation
 // are protected by row level security.
 enum AppConfig {
     static let supabaseURL = URL(string: "https://vrlibkfedffdnkbctvla.supabase.co")
-    static let supabasePublishableKey = ""
+    static let supabasePublishableKey = "sb_publishable_AmKsZ0YtqS0eMu0usGjIGw_IyLBP-sp"
 }
