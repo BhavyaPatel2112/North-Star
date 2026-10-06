@@ -1,0 +1,373 @@
+<title>North Star Design Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one phone-sized screen in the middle, a switch above it to swap between the two directions. */
+:root {
+  --page: #eef0ec; --page-ink: #1b2420; --page-muted: #5d6a63; --page-line: #d5dbd6; --page-card: #ffffff;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  /* India's air quality bands, used by both directions */
+  --b0: #3a9d5d; --b1: #9cc14f; --b2: #e4bd33; --b3: #ec8b35; --b4: #d6463a; --b5: #8f2236;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --page: #0f1412; --page-ink: #e4ebe7; --page-muted: #8e9d95; --page-line: #26302b; --page-card: #161d1a; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --page: #0f1412; --page-ink: #e4ebe7; --page-muted: #8e9d95; --page-line: #26302b; --page-card: #161d1a; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--page-ink); font: 15px/1.5 var(--body); }
+.wrap { display: grid; justify-items: center; gap: 16px; padding-inline: 16px; padding-block: 20px 36px; }
+.intro { max-width: 420px; width: 100%; display: grid; gap: 4px; }
+.intro h1 { margin: 0; font: 600 20px/1.2 var(--display); }
+.intro p { margin: 0; color: var(--page-muted); font-size: 14px; }
+.switch { display: inline-flex; padding: 4px; border-radius: 999px; background: var(--page-card); border: 1px solid var(--page-line); }
+.switch button { border: 0; background: none; color: var(--page-muted); font: 500 14px var(--body); padding: 8px 18px; border-radius: 999px; cursor: pointer; }
+.switch button[aria-pressed="true"] { background: var(--page-ink); color: var(--page); }
+button:focus-visible, select:focus-visible { outline: 2px solid #4b8bbe; outline-offset: 2px; }
+
+.phone { position: relative; width: min(390px, 100%); aspect-ratio: 390 / 800; max-height: 820px; border-radius: 38px; overflow: hidden; box-shadow: 0 0 0 10px #101413, 0 20px 50px rgba(0, 0, 0, 0.28); touch-action: none; user-select: none; -webkit-user-select: none; }
+@media (max-width: 440px) { .phone { box-shadow: 0 0 0 6px #101413; border-radius: 30px; } }
+.screen { position: absolute; inset: 0; }
+.status { position: absolute; top: 14px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 30px; font: 600 13px var(--body); z-index: 5; pointer-events: none; }
+
+.picker { position: relative; display: inline-flex; align-items: center; gap: 6px; font: 500 15px var(--body); }
+.picker select { appearance: none; -webkit-appearance: none; background: transparent; border: 0; font: inherit; color: inherit; padding: 4px 18px 4px 0; cursor: pointer; }
+.picker::after { content: ""; position: absolute; right: 2px; top: 50%; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+.picker svg { width: 14px; height: 14px; }
+
+/* ---------- The Sky ---------- */
+#sky { color: #fff; }
+#sky canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#sky .layer { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr auto; padding: 52px 26px 30px; z-index: 2; }
+#sky .top { display: flex; justify-content: space-between; align-items: center; text-shadow: 0 1px 8px rgba(0,0,0,0.18); }
+#sky .center { align-self: center; display: grid; gap: 10px; transform: translateY(-4%); }
+#sky .word { font: 800 clamp(64px, 22vw, 96px)/0.9 var(--display); letter-spacing: -0.03em; text-shadow: 0 2px 24px rgba(0,0,0,0.12); }
+#sky .band { font: 500 16px var(--body); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#sky .band i { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,0.8); }
+#sky .advice { font: 400 19px/1.35 var(--body); max-width: 16em; text-wrap: balance; }
+#sky .bottom { display: grid; gap: 10px; }
+#sky .when { font: 600 15px var(--body); display: flex; justify-content: space-between; }
+#sky .when span:last-child { font: 400 13px var(--mono); opacity: 0.8; }
+#sky .track { position: relative; height: 26px; }
+#sky .track .rail { position: absolute; left: 0; right: 0; top: 12px; height: 2px; background: rgba(255,255,255,0.35); border-radius: 2px; }
+#sky .track .tick { position: absolute; top: 9px; width: 1px; height: 8px; background: rgba(255,255,255,0.45); }
+#sky .track .dot { position: absolute; top: 5px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.25); }
+#sky .hint { font: 400 12px var(--mono); opacity: 0.75; text-align: center; }
+
+/* ---------- The Clock ---------- */
+#clock { background: var(--clock-bg, #121614); color: #eef2ee; transition: background 0.6s; }
+#clock .layer { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto 1fr auto; padding: 52px 24px 28px; gap: 6px; }
+#clock .top { display: flex; justify-content: space-between; align-items: center; color: #cfd8d2; }
+#clock .answer { font: 800 clamp(40px, 13vw, 52px)/1 var(--display); letter-spacing: -0.02em; margin-top: 14px; }
+#clock .sub { color: #a7b3ac; font-size: 15px; min-height: 2.9em; }
+#clock .dial { align-self: center; justify-self: center; width: 100%; max-width: 330px; aspect-ratio: 1; position: relative; }
+#clock svg { width: 100%; height: 100%; display: block; overflow: visible; touch-action: none; }
+#clock .dial text { font: 500 11px var(--mono); fill: #7f8c85; }
+#clock .readout { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 2px; pointer-events: none; }
+#clock .readout .t { font: 500 13px var(--mono); color: #a7b3ac; }
+#clock .readout .b { font: 600 24px/1.1 var(--display); }
+#clock .readout .v { font: 400 13px var(--mono); color: #a7b3ac; }
+#clock .plan { display: flex; gap: 10px; align-items: center; justify-content: space-between; border-top: 1px solid #27302b; padding-top: 14px; }
+#clock .plan p { margin: 0; font-size: 14px; color: #c7d1cb; }
+#clock .plan button { border: 0; border-radius: 999px; padding: 10px 16px; font: 600 14px var(--body); background: #eef2ee; color: #121614; cursor: pointer; white-space: nowrap; }
+#clock .sheet { position: absolute; left: 12px; right: 12px; bottom: 12px; background: #1d2421; border: 1px solid #2d3631; border-radius: 22px; padding: 18px; display: grid; gap: 8px; z-index: 6; }
+#clock .sheet h3 { margin: 0; font: 600 18px var(--display); }
+#clock .sheet p { margin: 0; color: #a7b3ac; font-size: 14px; }
+#clock .sheet button { justify-self: start; border: 1px solid #3a4540; background: none; color: #eef2ee; border-radius: 999px; padding: 8px 14px; font: 500 13px var(--body); cursor: pointer; }
+
+.notes { max-width: 420px; width: 100%; color: var(--page-muted); font-size: 13.5px; display: grid; gap: 6px; }
+.notes p { margin: 0; }
+.notes strong { color: var(--page-ink); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { #clock { transition: none; } }
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <h1>North Star: two directions</h1>
+    <p>Real forecasts for Mumbai, made <span id="made"></span>. Try them by touch.</p>
+  </div>
+  <div class="switch" role="group" aria-label="Design direction">
+    <button id="showSky" aria-pressed="true">The Sky</button>
+    <button id="showClock" aria-pressed="false">The Clock</button>
+  </div>
+
+  <div class="phone" id="phone">
+    <div class="status" id="status"><span id="clockTime"></span><span>5G</span></div>
+
+    <section class="screen" id="sky" aria-label="The Sky direction">
+      <canvas id="skyCanvas"></canvas>
+      <div class="layer">
+        <div class="top">
+          <label class="picker"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5a4.5 4.5 0 0 0-4.5 4.5c0 3.4 4.5 8.5 4.5 8.5s4.5-5.1 4.5-8.5A4.5 4.5 0 0 0 8 1.5Zm0 6.2a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4Z" fill="currentColor"/></svg><select id="skyPlace" aria-label="Place"></select></label>
+        </div>
+        <div class="center">
+          <div class="word" id="skyWord"></div>
+          <div class="band" id="skyBand"></div>
+          <div class="advice" id="skyAdvice"></div>
+        </div>
+        <div class="bottom">
+          <div class="when"><span id="skyWhen"></span><span id="skyIn"></span></div>
+          <div class="track" id="skyTrack"><div class="rail"></div><div class="dot" id="skyDot"></div></div>
+          <div class="hint">Drag anywhere to look ahead</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="clock" aria-label="The Clock direction" hidden>
+      <div class="layer">
+        <div class="top">
+          <label class="picker"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5a4.5 4.5 0 0 0-4.5 4.5c0 3.4 4.5 8.5 4.5 8.5s4.5-5.1 4.5-8.5A4.5 4.5 0 0 0 8 1.5Zm0 6.2a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4Z" fill="currentColor"/></svg><select id="clockPlace" aria-label="Place"></select></label>
+        </div>
+        <div class="answer" id="answer"></div>
+        <div class="sub" id="answerSub"></div>
+        <div class="dial">
+          <svg id="dial" viewBox="-170 -170 340 340" role="img" aria-label="Next 24 hours of air quality as a clock"></svg>
+          <div class="readout"><span class="t" id="rT"></span><span class="b" id="rB"></span><span class="v" id="rV"></span></div>
+        </div>
+        <div class="plan"><p id="planText"></p><button id="planBtn">Plan a run</button></div>
+      </div>
+      <div class="sheet" id="sheet" hidden>
+        <h3 id="sheetTitle"></h3>
+        <p id="sheetText"></p>
+        <p>Route choice comes next: the planner keeps you off main roads and along parks and the sea face where it can.</p>
+        <button id="sheetClose">Close</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="notes">
+    <p><strong>The Sky:</strong> the screen is the air. Drag sideways to move through the next day and a half; haze thickens and the Mumbai skyline fades as pollution rises.</p>
+    <p><strong>The Clock:</strong> the next 24 hours as a ring. Spin it with your thumb; the bright arc is the best time to run.</p>
+    <p>Readings are PM2.5 from our model, on India's air quality bands. In the app, band changes give a small vibration.</p>
+  </div>
+</div>
+
+<script>
+const DATA = __DATA__;
+const EDGES = [30, 60, 90, 120, 250];
+const BAND = ["Good", "Satisfactory", "Moderate", "Poor", "Very poor", "Severe"];
+const SKYWORD = ["Clear", "Fair", "Hazy", "Thick", "Heavy", "Severe"];
+const ADVICE = [
+  "Great air for a run. Go whenever suits you.",
+  "Fine for a run. Sensitive lungs: keep it easy.",
+  "Short, easy runs only. Carry your inhaler if you have asthma.",
+  "Skip the outdoor run today or go indoors.",
+  "Stay in. Keep windows closed.",
+  "Stay indoors. Avoid any exertion.",
+];
+const BAND_COLORS = ["#3a9d5d", "#9cc14f", "#e4bd33", "#ec8b35", "#d6463a", "#8f2236"];
+const band = v => { let b = 0; while (b < EDGES.length && v > EDGES[b]) b++; return b; };
+const mayReach = v => v >= 45 && v <= 60;  // cautious warning near the Moderate line
+
+const HOURS = DATA.hours.map(t => new Date(t));
+const H = HOURS.length;
+const istTime = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true });
+const istDay = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", weekday: "short" });
+const istHour = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", hourCycle: "h23" });
+const istMin = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", minute: "numeric" });
+const hourOfDay = d => +istHour.format(d) + (+istMin.format(d)) / 60;
+const fmtTime = d => istTime.format(d).toLowerCase();
+const nowIndex = (() => { const n = Date.now(); let k = 0; HOURS.forEach((h, i) => { if (h.getTime() <= n) k = i; }); return Math.min(k, H - 1); })();
+const isToday = d => istDay.format(d) === istDay.format(HOURS[nowIndex]);
+const label = i => i === nowIndex ? "Now" : `${isToday(HOURS[i]) ? "" : istDay.format(HOURS[i]) + " "}${fmtTime(HOURS[i])}`;
+
+document.getElementById("made").textContent = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(DATA.madeAt)).toLowerCase();
+document.getElementById("clockTime").textContent = istTime.format(new Date()).split(" ")[0];
+
+let place = 0;
+const values = () => DATA.places[place].pm25;
+function bestWindow() {
+  // Lowest two-hour average in the next 24 hours, between 5 am and 10 pm India time.
+  const v = values(); let best = null;
+  for (let i = nowIndex; i < Math.min(H - 1, nowIndex + 24); i++) {
+    const h = Math.floor(hourOfDay(HOURS[i]));
+    if (h < 5 || h > 21) continue;
+    const avg = (v[i] + v[i + 1]) / 2;
+    if (!best || avg < best.avg - 0.5) best = { i, avg };
+  }
+  return best;
+}
+let lastBand = null;
+function buzz(b) { if (lastBand !== null && b !== lastBand && navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} } lastBand = b; }
+
+// ---------- place pickers ----------
+for (const id of ["skyPlace", "clockPlace"]) {
+  const sel = document.getElementById(id);
+  DATA.places.forEach((p, i) => { const o = document.createElement("option"); o.value = i; o.textContent = p.name; sel.appendChild(o); });
+  sel.addEventListener("change", () => { place = +sel.value; document.getElementById("skyPlace").value = place; document.getElementById("clockPlace").value = place; sky.pos = nowIndex; clock.sel = nowIndex; renderSky(); renderClock(); });
+}
+
+// ================= THE SKY =================
+// Sky colours per band (top of sky, horizon), for daytime; night mixes towards deep blue.
+const SKY = [
+  ["#3f8fd2", "#bfe0f4"], ["#6f9fbf", "#d9e2d6"], ["#a7a184", "#e6d7b4"],
+  ["#9a8068", "#d8bd98"], ["#76604f", "#b39579"], ["#54413a", "#8a6f61"],
+];
+const NIGHT = ["#0e1a33", "#2a3550"];
+const sky = { pos: nowIndex };
+const canvas = document.getElementById("skyCanvas"), ctx = canvas.getContext("2d");
+const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+const mix = (a, b, t) => a.map((x, i) => Math.round(x + (b[i] - x) * t));
+const rgb = a => `rgb(${a[0]},${a[1]},${a[2]})`;
+const lerpBand = v => { // continuous band position (0 = middle of Good ... 5 = Severe) for smooth colour changes
+  const e = [0, ...EDGES, 400];
+  for (let i = 0; i < e.length - 1; i++) if (v <= e[i + 1]) return Math.max(0, Math.min(5, i + (v - e[i]) / (e[i + 1] - e[i]) - 0.5));
+  return 5;
+};
+function skyColors(v, hod) {
+  const p = Math.max(0, Math.min(5, lerpBand(v))), lo = Math.floor(p), hi = Math.min(5, lo + 1), t = p - lo;
+  let top = mix(hex(SKY[lo][0]), hex(SKY[hi][0]), t), bot = mix(hex(SKY[lo][1]), hex(SKY[hi][1]), t);
+  // Darkness: full night 20:00-05:00, twilight either side.
+  const dark = hod >= 20 || hod < 5 ? 0.82 : hod >= 18.5 ? (hod - 18.5) / 1.5 * 0.82 : hod < 6.5 ? (6.5 - hod) / 1.5 * 0.82 : 0;
+  top = mix(top, hex(NIGHT[0]), dark); bot = mix(bot, hex(NIGHT[1]), dark * 0.9);
+  return { top, bot, dark };
+}
+// A simple Mumbai skyline (towers and the sea link) drawn once as proportions of the width.
+const SKYLINE = (() => { const pts = []; let x = 0, seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  while (x < 1) { const w = 0.025 + rnd() * 0.05, h = 0.04 + rnd() * (x > 0.55 && x < 0.8 ? 0.2 : 0.11); pts.push([x, w, h]); x += w + rnd() * 0.01; } return pts; })();
+let grain = null;
+function makeGrain(w, h) {
+  const g = document.createElement("canvas"); g.width = w; g.height = h; const gx = g.getContext("2d"), img = gx.createImageData(w, h);
+  for (let i = 0; i < img.data.length; i += 4) { const n = 200 + Math.random() * 55; img.data[i] = n; img.data[i + 1] = n * 0.97; img.data[i + 2] = n * 0.9; img.data[i + 3] = Math.random() * 255; }
+  gx.putImageData(img, 0, 0); return g;
+}
+function drawSky() {
+  const r = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w) return;
+  if (canvas.width !== Math.round(w * r)) { canvas.width = Math.round(w * r); canvas.height = Math.round(h * r); grain = makeGrain(Math.round(w * r / 2), Math.round(h * r / 2)); }
+  const v = values(), i0 = Math.floor(sky.pos), i1 = Math.min(H - 1, i0 + 1), t = sky.pos - i0;
+  const val = v[i0] + (v[i1] - v[i0]) * t;
+  const hod = (hourOfDay(HOURS[i0]) + t) % 24;
+  const { top, bot, dark } = skyColors(val, hod);
+  ctx.setTransform(r, 0, 0, r, 0, 0);
+  const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, rgb(top)); g.addColorStop(1, rgb(bot));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  // Skyline: fades as haze thickens (you literally see less of the city).
+  const haze = Math.max(0, Math.min(1, (val - 15) / 110));
+  const base = h * 0.8;
+  ctx.globalAlpha = 0.55 * (1 - haze * 0.85);
+  ctx.fillStyle = dark > 0.4 ? "#0b1222" : rgb(mix(bot, [40, 45, 55], 0.55));
+  for (const [x, bw, bh] of SKYLINE) ctx.fillRect(x * w, base - bh * h, bw * w, bh * h + h * 0.2);
+  // lit windows at night
+  if (dark > 0.4) { ctx.fillStyle = "#ffd98a"; ctx.globalAlpha = 0.5 * (1 - haze);
+    SKYLINE.forEach(([x, bw, bh], k) => { for (let y = base - bh * h + 6; y < base - 4; y += 9) if ((k * 31 + Math.floor(y)) % 5 === 0) ctx.fillRect(x * w + bw * w * 0.4, y, 2, 3); }); }
+  ctx.globalAlpha = 1;
+  // haze wash and grain
+  const wash = mix(bot, [235, 220, 190], 0.4);
+  const hg = ctx.createLinearGradient(0, h * 0.35, 0, h);
+  hg.addColorStop(0, `rgba(${wash},0)`); hg.addColorStop(1, `rgba(${wash},${0.15 + haze * 0.55})`);
+  ctx.fillStyle = hg; ctx.fillRect(0, 0, w, h);
+  if (grain) { ctx.globalAlpha = 0.04 + haze * 0.22; ctx.drawImage(grain, 0, 0, w, h); ctx.globalAlpha = 1; }
+}
+function renderSky() {
+  const i = Math.round(sky.pos), v = values()[i], b = band(v);
+  document.getElementById("skyWord").textContent = SKYWORD[b];
+  document.getElementById("skyBand").innerHTML = `<i style="background:${BAND_COLORS[b]}"></i>${BAND[b]}${mayReach(v) ? ", may reach Moderate" : ""} · PM2.5 ${v}`;
+  let advice = ADVICE[b];
+  if (i === nowIndex) { const best = bestWindow(); if (best && values()[best.i] + 5 < v) advice += ` Cleanest around ${fmtTime(HOURS[best.i])}.`; }
+  document.getElementById("skyAdvice").textContent = advice;
+  document.getElementById("skyWhen").textContent = label(i);
+  const ahead = i - nowIndex;
+  document.getElementById("skyIn").textContent = ahead > 0 ? `in ${ahead} h` : ahead < 0 ? `${-ahead} h ago` : "";
+  const track = document.getElementById("skyTrack"), frac = sky.pos / (H - 1);
+  document.getElementById("skyDot").style.left = `${frac * 100}%`;
+  if (!track.dataset.ticks) { for (let k = 0; k < H; k++) if (Math.floor(hourOfDay(HOURS[k])) === 0) { const t = document.createElement("div"); t.className = "tick"; t.style.left = `${k / (H - 1) * 100}%`; track.appendChild(t); } track.dataset.ticks = 1; }
+  buzz(b); drawSky();
+}
+(() => { // drag anywhere on the sky to move through time
+  const el = document.getElementById("sky"); let start = null;
+  el.addEventListener("pointerdown", e => { if (e.target.closest("select")) return; start = { x: e.clientX, pos: sky.pos }; el.setPointerCapture(e.pointerId); });
+  el.addEventListener("pointermove", e => { if (!start) return; sky.pos = Math.max(0, Math.min(H - 1, start.pos + (e.clientX - start.x) / 14)); renderSky(); });
+  const end = () => { if (!start) return; start = null; sky.pos = Math.round(sky.pos); renderSky(); };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+  el.addEventListener("keydown", e => { if (e.key === "ArrowRight") { sky.pos = Math.min(H - 1, Math.round(sky.pos) + 1); renderSky(); } if (e.key === "ArrowLeft") { sky.pos = Math.max(0, Math.round(sky.pos) - 1); renderSky(); } });
+  el.tabIndex = 0;
+})();
+
+// ================= THE CLOCK =================
+const clock = { sel: nowIndex };
+const NS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("dial");
+const R = 128, W = 26;  // ring radius and thickness
+const angleOf = hod => (hod / 24) * Math.PI * 2 - Math.PI / 2;  // midnight at the top, clockwise
+const pt = (a, r) => [Math.cos(a) * r, Math.sin(a) * r];
+function arcPath(a0, a1, r0, r1) {
+  const large = a1 - a0 > Math.PI ? 1 : 0, [x0, y0] = pt(a0, r1), [x1, y1] = pt(a1, r1), [x2, y2] = pt(a1, r0), [x3, y3] = pt(a0, r0);
+  return `M${x0} ${y0} A${r1} ${r1} 0 ${large} 1 ${x1} ${y1} L${x2} ${y2} A${r0} ${r0} 0 ${large} 0 ${x3} ${y3} Z`;
+}
+function el(tag, attrs, parent = svg) { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; }
+function renderClock() {
+  svg.replaceChildren();
+  const v = values(), best = bestWindow(), last = Math.min(H - 1, nowIndex + 23);
+  el("circle", { r: R, fill: "none", stroke: "#1f2724", "stroke-width": W });
+  for (let i = nowIndex; i <= last; i++) {
+    const h0 = hourOfDay(HOURS[i]), a0 = angleOf(h0) + 0.012, a1 = angleOf(h0 + 1) - 0.012;
+    el("path", { d: arcPath(a0, a1, R - W / 2, R + W / 2), fill: BAND_COLORS[band(v[i])], opacity: i === clock.sel ? 1 : 0.86 });
+  }
+  if (best) { // best window: a bright outer arc
+    const h0 = hourOfDay(HOURS[best.i]);
+    el("path", { d: arcPath(angleOf(h0), angleOf(h0 + 2), R + W / 2 + 6, R + W / 2 + 11), fill: "#f4f1e6" });
+    const [lx, ly] = pt(angleOf(h0 + 1), R + W / 2 + 26);
+    el("text", { x: lx, y: ly + 4, "text-anchor": "middle", style: "fill:#f4f1e6;font-weight:500" }).textContent = "best";
+  }
+  for (const [hh, txt] of [[0, "12a"], [6, "6a"], [12, "12p"], [18, "6p"]]) {
+    const [x, y] = pt(angleOf(hh), R - W / 2 - 18); el("text", { x, y: y + 4, "text-anchor": "middle" }).textContent = txt;
+  }
+  // now hand and the selected hour marker
+  const [nx, ny] = pt(angleOf(hourOfDay(HOURS[nowIndex])), R - W / 2 - 4), [nx2, ny2] = pt(angleOf(hourOfDay(HOURS[nowIndex])), R + W / 2 + 2);
+  el("line", { x1: nx, y1: ny, x2: nx2, y2: ny2, stroke: "#ffffff", "stroke-width": 2.5, "stroke-linecap": "round" });
+  const sa = angleOf(hourOfDay(HOURS[clock.sel]) + 0.5), [sx, sy] = pt(sa, R);
+  el("circle", { cx: sx, cy: sy, r: 15, fill: "#121614", stroke: "#ffffff", "stroke-width": 3 });
+
+  // centre readout and the answer
+  const sv = v[clock.sel], sb = band(sv), nv = v[nowIndex], nb = band(nv);
+  document.getElementById("rT").textContent = label(clock.sel);
+  document.getElementById("rB").textContent = BAND[sb];
+  document.getElementById("rB").style.color = BAND_COLORS[sb];
+  document.getElementById("rV").textContent = `PM2.5 ${sv}${mayReach(sv) ? " · may reach Moderate" : ""}`;
+  const goNow = !best || nv <= best.avg + 4 || band(best.avg) >= nb;
+  document.getElementById("answer").textContent = nb >= 3 ? "Skip it today." : goNow ? "Go now." : `Wait till ${fmtTime(HOURS[best.i])}.`;
+  document.getElementById("answerSub").textContent = nb >= 3 ? ADVICE[nb]
+    : goNow ? `${BAND[nb]} right now. ${ADVICE[nb]}`
+    : `${BAND[nb]} now; ${BAND[band(best.avg)].toLowerCase()} from ${fmtTime(HOURS[best.i])} to ${fmtTime(HOURS[best.i + 2] ?? HOURS[best.i + 1])}.`;
+  document.getElementById("planText").textContent = best ? `Best window ${fmtTime(HOURS[best.i])} to ${fmtTime(HOURS[best.i + 2] ?? HOURS[best.i + 1])}` : "No clean window soon";
+  document.getElementById("clock").style.setProperty("--clock-bg", `color-mix(in srgb, ${BAND_COLORS[nb]} 9%, #121614)`);
+  buzz(sb);
+}
+(() => { // spin the ring: the angle under your thumb picks the hour
+  let dragging = false;
+  const pick = e => {
+    const r = svg.getBoundingClientRect(), x = e.clientX - (r.left + r.width / 2), y = e.clientY - (r.top + r.height / 2);
+    let hod = ((Math.atan2(y, x) + Math.PI / 2) / (Math.PI * 2)) * 24; if (hod < 0) hod += 24;
+    const ahead = Math.floor((hod - hourOfDay(HOURS[nowIndex]) + 24) % 24);
+    clock.sel = Math.min(H - 1, nowIndex + ahead); renderClock();
+  };
+  svg.addEventListener("pointerdown", e => { dragging = true; svg.setPointerCapture(e.pointerId); pick(e); });
+  svg.addEventListener("pointermove", e => { if (dragging) pick(e); });
+  const end = () => { dragging = false; };
+  svg.addEventListener("pointerup", end); svg.addEventListener("pointercancel", end);
+})();
+document.getElementById("planBtn").onclick = () => {
+  const best = bestWindow(); if (!best) return;
+  document.getElementById("sheetTitle").textContent = `Run at ${fmtTime(HOURS[best.i])}`;
+  document.getElementById("sheetText").textContent = `${DATA.places[place].name}: about PM2.5 ${Math.round(best.avg)} (${BAND[band(best.avg)]}) between ${fmtTime(HOURS[best.i])} and ${fmtTime(HOURS[best.i + 2] ?? HOURS[best.i + 1])}.`;
+  document.getElementById("sheet").hidden = false;
+};
+document.getElementById("sheetClose").onclick = () => { document.getElementById("sheet").hidden = true; };
+
+// ---------- switch ----------
+function show(which) {
+  document.getElementById("sky").hidden = which !== "sky"; document.getElementById("clock").hidden = which !== "clock";
+  document.getElementById("showSky").setAttribute("aria-pressed", which === "sky"); document.getElementById("showClock").setAttribute("aria-pressed", which === "clock");
+  document.getElementById("status").style.color = which === "sky" ? "#fff" : "#eef2ee";
+  lastBand = null; which === "sky" ? renderSky() : renderClock();
+  try { localStorage.setItem("ns-direction", which); } catch (e) {}
+}
+document.getElementById("showSky").onclick = () => show("sky");
+document.getElementById("showClock").onclick = () => show("clock");
+new ResizeObserver(() => drawSky()).observe(canvas);
+let startWith = "sky"; try { startWith = localStorage.getItem("ns-direction") || "sky"; } catch (e) {}
+renderClock(); show(startWith);
+</script>
