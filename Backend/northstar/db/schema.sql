@@ -160,3 +160,26 @@ create table if not exists source_checks (
 );
 
 alter table source_checks enable row level security;
+
+-- The map's hexagons (H3 resolution 9, about 350 m across), with the weather
+-- and CAMS squares each one uses and its city-layout features.
+-- Features are stored as JSON so the list can grow without changing the table.
+create table if not exists grid_cells (
+    h3_index        text primary key,
+    location        geography(Point, 4326) not null,
+    area_name       text,
+    weather_cell_id smallint references weather_cells (cell_id),
+    cams_cell_id    smallint references cams_cells (cell_id),
+    features        jsonb not null
+);
+
+create index if not exists grid_cells_location_idx on grid_cells using gist (location);
+
+-- The same city-layout features measured at each station.
+create table if not exists station_features (
+    station_id smallint primary key references stations (station_id),
+    features   jsonb not null
+);
+
+alter table grid_cells       enable row level security;
+alter table station_features enable row level security;
