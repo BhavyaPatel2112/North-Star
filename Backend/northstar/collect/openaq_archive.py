@@ -12,7 +12,7 @@ on disk are skipped, so an interrupted download can simply be run again.
 
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import requests
@@ -26,10 +26,13 @@ OPENAQ_RAW_DIR = config.RAW_DIR / "openaq"
 FILE_DATE = re.compile(r"-(\d{4})(\d{2})(\d{2})\.csv\.gz$")
 
 
-def list_files(location_id: str, start: date) -> list[str]:
-    """Return archive paths of all daily files for one location from `start` onward."""
+def list_files(location_id: str, start: date, prefix: str | None = None) -> list[str]:
+    """Return archive paths of all daily files for one location from `start` onward.
+
+    `prefix` narrows the listing (for example to one month) to make it faster.
+    """
     keys: list[str] = []
-    params = {"list-type": "2", "prefix": f"records/csv.gz/locationid={location_id}/"}
+    params = {"list-type": "2", "prefix": prefix or f"records/csv.gz/locationid={location_id}/"}
     while True:
         # S3 returns at most 1000 names per request; follow the continuation token.
         response = requests.get(ARCHIVE_URL, params=params, timeout=60)
@@ -90,3 +93,23 @@ def download_locations(location_ids: list[str], start: date, workers: int = 16) 
     print(f"Finished: {done} downloaded, {failed} failed, {total_bytes / 1e6:.0f} MB.")
     if failed:
         print("Run the script again to retry the failed files.")
+
+
+def download_recent(location_ids: list[str], days: int = 7, workers: int = 16) -> list[Path]:
+    """Re-download the last `days` days of files for each location.
+
+    Recent daily files keep changing as late readings arrive, so they are
+    always downloaded again, replacing the local copy. Returns the local paths.
+    """
+    start = date.today() - timedelta(days=days)
+    months = {(start.year, start.month), (date.today().year, date.today().month)}
+    todo: list[tuple[str, Path]] = []
+    for location_id in location_ids:
+        for year, month in months:
+            prefix = f"records/csv.gz/locationid={location_id}/year={year}/month={month:02d}/"
+            for key in list_files(location_id, start, prefix=prefix):
+                todo.append((key, local_path(key, location_id)))
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(lambda item: download_file(*item), todo))
+    return [path for _, path in todo]

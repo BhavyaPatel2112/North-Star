@@ -18,6 +18,7 @@ import requests
 from northstar import config
 
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 OPEN_METEO_RAW_DIR = config.RAW_DIR / "open_meteo"
 
 # Open-Meteo variable name -> our column name (see weather_hourly in schema.sql).
@@ -117,3 +118,37 @@ def download_cells(cells: list[tuple[float, float]], start: date) -> None:
             frame.to_parquet(path, index=False)
             print(f"  cell {latitude:.4f},{longitude:.4f} {year}: {len(frame)} hours")
             time.sleep(PAUSE_SECONDS)
+
+
+def fetch_recent(cells: list[tuple[float, float]], past_days: int = 2, forecast_days: int = 3) -> pd.DataFrame:
+    """Recent hours plus the latest forecast for several grid squares in one request.
+
+    Used by the hourly collector. The forecast service uses a live weather
+    model instead of the reanalysis used for history, so values can differ
+    slightly; this is normal. Returns latitude, longitude, ts and our weather columns.
+    """
+    response = requests.get(
+        FORECAST_URL,
+        params={
+            "latitude": ",".join(str(lat) for lat, _ in cells),
+            "longitude": ",".join(str(lon) for _, lon in cells),
+            "hourly": ",".join(VARIABLES),
+            "past_days": past_days,
+            "forecast_days": forecast_days,
+            "wind_speed_unit": "ms",
+            "timezone": "GMT",
+            "cell_selection": CELL_SELECTION,
+        },
+        timeout=120,
+    )
+    response.raise_for_status()
+    results = response.json()
+    if isinstance(results, dict):
+        results = [results]
+    frames = []
+    for (latitude, longitude), result in zip(cells, results):
+        frame = pd.DataFrame(result["hourly"]).rename(columns=VARIABLES)
+        frame["ts"] = pd.to_datetime(frame.pop("time"), utc=True)
+        frame["latitude"], frame["longitude"] = latitude, longitude
+        frames.append(frame)
+    return pd.concat(frames, ignore_index=True)

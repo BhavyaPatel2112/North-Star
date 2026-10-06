@@ -16,8 +16,8 @@ import pandas as pd
 from northstar import config
 from northstar.clean import openaq as clean
 from northstar.collect.openaq_archive import OPENAQ_RAW_DIR
+from northstar.collect.stations import STATIONS_FILE, location_priority
 
-STATIONS_FILE = Path(__file__).resolve().parent.parent / "northstar" / "collect" / "stations.csv"
 OUTPUT_FILE = config.PROCESSED_DIR / "air_readings_hourly.parquet"
 
 
@@ -32,16 +32,6 @@ def load_raw() -> pd.DataFrame:
     raw["datetime"] = pd.to_datetime(raw.datetime, utc=True, format="ISO8601")
     print(f"Read {len(files):,} files")
     return raw
-
-
-def location_priority() -> dict[int, tuple[int, int]]:
-    """OpenAQ id -> (station_id, priority). The first id listed for a station wins."""
-    stations = pd.read_csv(STATIONS_FILE, dtype={"openaq_location_ids": str})
-    mapping = {}
-    for row in stations.itertuples():
-        for priority, location_id in enumerate(row.openaq_location_ids.split(";")):
-            mapping[int(location_id)] = (row.station_id, priority)
-    return mapping
 
 
 def main() -> None:

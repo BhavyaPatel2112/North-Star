@@ -175,3 +175,14 @@ def fill_short_gaps(wide: pd.DataFrame) -> pd.DataFrame:
     result = pd.concat(pieces, ignore_index=True)
     # Drop hours where every pollutant is still empty.
     return result.dropna(subset=POLLUTANTS, how="all")
+
+
+def run_pipeline(raw: pd.DataFrame, location_priority: dict[int, tuple[int, int]]) -> pd.DataFrame:
+    """Run every cleaning step in order and return the wide station-hour table."""
+    df = fix_units(raw)
+    df = remove_invalid(df)
+    df = to_hourly(df)
+    df = merge_duplicates(df, location_priority)
+    df = remove_stuck(df)
+    wide = remove_pm_mismatch(to_wide(df))
+    return fill_short_gaps(wide)
