@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 
 /// The main screen: the sky for one place, one big word, one tip.
