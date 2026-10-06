@@ -9,6 +9,7 @@ place with no monitor, which is what every hexagon on the map is.
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import GroupKFold
 
 # India's National Air Quality Index bands (µg/m³). Officially they use 24-hour
 # (8-hour for ozone) averages; applied to hourly values here as an approximation.
@@ -88,3 +89,78 @@ def lightgbm_leave_one_out(frame: pd.DataFrame, target: str, features: list[str]
         model.fit(train[features], train[target])
         predictions.loc[test.index] = model.predict(test[features])
     return predictions
+
+
+def grouped_station_cv(frame: pd.DataFrame, make_model, n_groups: int = 8,
+                       train_before: pd.Timestamp | None = None) -> pd.Series:
+    """Faster version of leave-one-station-out for experiments.
+
+    Stations are split into `n_groups` groups; each group is hidden in turn
+    and predicted by a model trained on the other groups. Every station is
+    still predicted by a model that never saw it. `make_model()` must return
+    an object with fit(frame) and predict(frame). With `train_before`, models
+    train on earlier hours only and predict later hours only.
+    """
+    predictions = pd.Series(np.nan, index=frame.index)
+    folds = GroupKFold(n_splits=n_groups)
+    for train_idx, test_idx in folds.split(frame, groups=frame.station_id):
+        train, test = frame.iloc[train_idx], frame.iloc[test_idx]
+        if train_before is not None:
+            train, test = train[train.ts < train_before], test[test.ts >= train_before]
+        if test.empty:
+            continue
+        model = make_model().fit(train)
+        predictions.loc[test.index] = model.predict(test)
+    return predictions
+
+
+def ordering_accuracy(frame: pd.DataFrame, target: str, predicted: str, by: str, within: list[str],
+                      min_difference: float, max_pairs: int = 200_000, max_groups: int = 4000,
+                      seed: int = 0) -> float:
+    """How often the prediction picks the cleaner of two options.
+
+    by="ts" with within=["station_id", "day"]: two hours at the same place on the
+    same day ("best time to go out"). by="station_id" with within=["ts"]: two
+    places at the same hour ("cleaner area or route"). Only pairs whose real
+    values differ by at least `min_difference` count, since tiny differences
+    don't matter to a person deciding.
+    """
+    rng = np.random.default_rng(seed)
+    data = frame[within + [by, target, predicted]].dropna()
+    # Use a random sample of groups (days or hours) so the pair table stays small.
+    groups = data[within].drop_duplicates()
+    if len(groups) > max_groups:
+        groups = groups.iloc[rng.choice(len(groups), max_groups, replace=False)]
+        data = data.merge(groups, on=within)
+    pairs = data.merge(data, on=within, suffixes=("_a", "_b"))
+    pairs = pairs[pairs[f"{by}_a"] < pairs[f"{by}_b"]]
+    pairs = pairs[(pairs[f"{target}_a"] - pairs[f"{target}_b"]).abs() >= min_difference]
+    if len(pairs) > max_pairs:
+        pairs = pairs.iloc[rng.choice(len(pairs), max_pairs, replace=False)]
+    real = np.sign(pairs[f"{target}_a"] - pairs[f"{target}_b"])
+    guess = np.sign(pairs[f"{predicted}_a"] - pairs[f"{predicted}_b"])
+    # A tie (the prediction cannot tell them apart) counts as half right, like a coin flip.
+    return float(((real == guess) + 0.5 * (guess == 0)).mean())
+
+
+def place_average_accuracy(frame: pd.DataFrame, target: str, predicted: str, min_difference: float) -> float:
+    """How often the prediction picks which of two stations is cleaner ON AVERAGE.
+
+    Averages each station over the hours both were measured, which removes
+    hour-to-hour noise; closer to "is this area usually cleaner?".
+    """
+    table = frame.pivot_table(index="ts", columns="station_id", values=[target, predicted])
+    stations = table[target].columns
+    right, total = 0.0, 0
+    for i, a in enumerate(stations):
+        for b in stations[i + 1:]:
+            both = table[target][a].notna() & table[target][b].notna() & table[predicted][a].notna()
+            if both.sum() < 24 * 30:  # need at least a month in common
+                continue
+            real = table[target][a][both].mean() - table[target][b][both].mean()
+            if abs(real) < min_difference:
+                continue
+            guess = table[predicted][a][both].mean() - table[predicted][b][both].mean()
+            right += 1.0 if np.sign(real) == np.sign(guess) else (0.5 if guess == 0 else 0.0)
+            total += 1
+    return right / total if total else float("nan")

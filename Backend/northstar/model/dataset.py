@@ -10,6 +10,7 @@ Each row combines:
 - city-layout features of the place (roads, industry, green, coast...)
 - time: hour of day and day of week in Indian time, season
 - festivals: days since and until each festival (Diwali, Ganesh Chaturthi...)
+- fires seen by satellite: nearby, regional, and upwind (smoke blowing this way)
 """
 
 import json
@@ -90,6 +91,89 @@ def add_weather_features(frame: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+EARTH_RADIUS_KM = 6371.0
+
+
+def _distance_and_bearing(lat0, lon0, lat1, lon1):
+    """Distance (km) and compass bearing (radians, 0 = north) from points 0 to points 1."""
+    lat0, lon0, lat1, lon1 = map(np.radians, (lat0, lon0, lat1, lon1))
+    d_lat, d_lon = lat1 - lat0, lon1 - lon0
+    a = np.sin(d_lat / 2) ** 2 + np.cos(lat0) * np.cos(lat1) * np.sin(d_lon / 2) ** 2
+    distance = 2 * EARTH_RADIUS_KM * np.arcsin(np.sqrt(a))
+    bearing = np.arctan2(np.sin(d_lon) * np.cos(lat1),
+                         np.cos(lat0) * np.sin(lat1) - np.sin(lat0) * np.cos(lat1) * np.cos(d_lon))
+    return distance, bearing
+
+
+def add_fire_features(frame: pd.DataFrame, fires: pd.DataFrame, locations: pd.DataFrame,
+                      key: str = "station_id") -> pd.DataFrame:
+    """Fire features for each row, from satellite detections before that hour.
+
+    `locations` gives latitude and longitude per `key` (station or hexagon).
+    - fire_count_25km_24h, fire_frp_25km_24h: fires within 25 km in the last 24 hours
+    - fire_frp_100km_24h: total fire power within 100 km in the last 24 hours
+    - fire_frp_300km_72h: total within 300 km in the last 72 hours (regional smoke lingers)
+    - fire_upwind_300km_24h: fires within 300 km, counted more when the wind blows
+      from them towards this place and when they are closer. Below 0 means
+      the fires are mostly downwind.
+
+    The upwind score uses cos(bearing to fire - direction the wind comes from),
+    which splits into a part that depends only on the fire (summed once per
+    hour) and a part that depends only on the wind at the row's hour, so it
+    is fast to compute for every hour.
+    """
+    fire_hours = fires.detected_at.dt.floor("h")
+    out = {name: np.zeros(len(frame), dtype="float32") for name in (
+        "fire_count_25km_24h", "fire_frp_25km_24h", "fire_frp_100km_24h",
+        "fire_frp_300km_72h", "fire_upwind_300km_24h")}
+    hours_all = pd.date_range(frame.ts.min() - pd.Timedelta(hours=72), frame.ts.max(), freq="h")
+
+    for place, rows in frame.groupby(key).groups.items():
+        lat, lon = locations.loc[place, ["latitude", "longitude"]]
+        distance, bearing = _distance_and_bearing(lat, lon, fires.latitude.to_numpy(), fires.longitude.to_numpy())
+        near = distance <= 300
+        f = pd.DataFrame({
+            "hour": fire_hours[near].to_numpy(), "distance": distance[near],
+            "bearing": bearing[near], "frp": fires.frp.to_numpy()[near],
+        })
+        closeness = f.frp / (1 + f.distance / 50)  # nearer fires count more
+        f["count_25"] = (f.distance <= 25).astype(float)
+        f["frp_25"] = f.frp * (f.distance <= 25)
+        f["frp_100"] = f.frp * (f.distance <= 100)
+        f["frp_300"] = f.frp
+        f["up_cos"] = closeness * np.cos(f.bearing)
+        f["up_sin"] = closeness * np.sin(f.bearing)
+        hourly = f.groupby("hour")[["count_25", "frp_25", "frp_100", "frp_300", "up_cos", "up_sin"]].sum()
+        hourly = hourly.reindex(hours_all, fill_value=0)
+        last_24 = hourly.rolling(24, min_periods=1).sum()
+        last_72 = hourly.frp_300.rolling(72, min_periods=1).sum()
+
+        row_index = frame.index.get_indexer(rows)
+        ts = frame.ts.to_numpy()[row_index]
+        window = last_24.reindex(ts)
+        wind_from = np.radians(frame.wind_dir_deg.to_numpy()[row_index])
+        out["fire_count_25km_24h"][row_index] = window.count_25.to_numpy()
+        out["fire_frp_25km_24h"][row_index] = window.frp_25.to_numpy()
+        out["fire_frp_100km_24h"][row_index] = window.frp_100.to_numpy()
+        out["fire_frp_300km_72h"][row_index] = last_72.reindex(ts).to_numpy()
+        out["fire_upwind_300km_24h"][row_index] = (
+            window.up_cos.to_numpy() * np.cos(wind_from) + window.up_sin.to_numpy() * np.sin(wind_from))
+
+    for name, values in out.items():
+        frame[name] = values
+    return frame
+
+
+def load_fires(conn: psycopg.Connection, start: str) -> pd.DataFrame:
+    rows = conn.execute(
+        "select detected_at, latitude, longitude, frp from fires where detected_at >= %s::timestamptz - interval '4 days'",
+        (start,),
+    ).fetchall()
+    fires = pd.DataFrame(rows, columns=["detected_at", "latitude", "longitude", "frp"])
+    fires["detected_at"] = pd.to_datetime(fires.detected_at, utc=True)
+    return fires.astype({"latitude": float, "longitude": float, "frp": float})
+
+
 def _expand_features(frame: pd.DataFrame, column: str = "features") -> pd.DataFrame:
     expanded = pd.DataFrame([json.loads(f) if isinstance(f, str) else f for f in frame[column]], index=frame.index)
     return pd.concat([frame.drop(columns=column), expanded], axis=1)
@@ -119,7 +203,12 @@ def load_station_rows(conn: psycopg.Connection, start: str = "2022-08-04") -> pd
     frame[numeric] = frame[numeric].apply(pd.to_numeric).astype("float32")
     frame["station_id"] = frame.station_id.astype("int16")
     frame = add_weather_features(add_time_features(frame))
-    return add_event_features(frame, load_events(conn))
+    frame = add_event_features(frame, load_events(conn))
+    locations = pd.DataFrame(
+        conn.execute("select station_id, ST_Y(location::geometry), ST_X(location::geometry) from stations").fetchall(),
+        columns=["station_id", "latitude", "longitude"],
+    ).set_index("station_id")
+    return add_fire_features(frame, load_fires(conn, start), locations)
 
 
 def target_is_real(frame: pd.DataFrame, target: str) -> pd.Series:

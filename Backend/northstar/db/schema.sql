@@ -196,3 +196,19 @@ create table if not exists events (
 );
 
 alter table events enable row level security;
+
+-- Fire detections from NASA FIRMS satellites in a ~500 km box around Mumbai.
+-- frp = fire radiative power in megawatts (how big the fire is).
+create table if not exists fires (
+    satellite   text not null,
+    detected_at timestamptz not null,
+    latitude    real not null,
+    longitude   real not null,
+    frp         real,
+    confidence  text,
+    primary key (satellite, detected_at, latitude, longitude)
+);
+
+create index if not exists fires_detected_at_idx on fires (detected_at);
+
+alter table fires enable row level security;

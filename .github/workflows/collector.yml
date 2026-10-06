@@ -42,4 +42,5 @@ jobs:
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
           DATAGOVIN_API_KEY: ${{ secrets.DATAGOVIN_API_KEY }}
           WAQI_TOKEN: ${{ secrets.WAQI_TOKEN }}
+          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
         run: python -m scripts.run_collector
