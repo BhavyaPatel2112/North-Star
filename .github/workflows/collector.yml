@@ -8,10 +8,13 @@
 
 name: Hourly collector and predictions
 
+# Started every hour at minute 17 by an external timer (cron-job.org), which
+# calls GitHub's "run workflow" API with a token limited to this repository's
+# Actions. GitHub's own schedule was unreliable for this repository (no runs
+# for 5 hours after it was added), so it is not used. The same trigger also
+# gives a "Run workflow" button for manual runs.
 on:
-  schedule:
-    - cron: "17 * * * *"   # every hour at minute 17 (UTC); avoids the busy top of the hour
-  workflow_dispatch:         # adds a "Run workflow" button for manual runs
+  workflow_dispatch:
 
 # Never run two collectors at the same time.
 concurrency:
