@@ -8,17 +8,18 @@ Each row combines:
 - CAMS values for that hour (the coarse model we correct)
 - weather for that hour
 - city-layout features of the place (roads, industry, green, coast...)
-- time: hour of day and day of week in Indian time, season, festival days
+- time: hour of day and day of week in Indian time, season
+- festivals: days since and until each festival (Diwali, Ganesh Chaturthi...)
 """
 
 import json
-from datetime import date
 
 import numpy as np
 import pandas as pd
 import psycopg
 
 from northstar import config
+from northstar.collect.events import EVENT_TYPES, load_events
 
 TRAINING_FILE = config.PROCESSED_DIR / "training.parquet"
 TARGETS = ["pm25", "pm10", "no2", "o3"]  # pollutants we predict
@@ -31,8 +32,8 @@ WEATHER_COLUMNS = [
     "boundary_layer_height_m",
 ]
 
-# Main Diwali day each year: firecrackers cause the worst hours of the year.
-DIWALI = [date(2022, 10, 24), date(2023, 11, 12), date(2024, 11, 1), date(2025, 10, 21), date(2026, 11, 8)]
+# Festival effects are measured up to this many days before and after.
+EVENT_WINDOW_DAYS = 21
 
 
 def add_time_features(frame: pd.DataFrame) -> pd.DataFrame:
@@ -45,10 +46,36 @@ def add_time_features(frame: pd.DataFrame) -> pd.DataFrame:
     day = local.dt.dayofyear
     frame["season_sin"] = np.sin(2 * np.pi * day / 365.25)
     frame["season_cos"] = np.cos(2 * np.pi * day / 365.25)
-    days_from_diwali = pd.Series(
-        [min(abs((d - festival).days) for festival in DIWALI) for d in local.dt.date], index=frame.index
-    )
-    frame["diwali_window"] = (days_from_diwali <= 2).astype("int8")
+    return frame
+
+
+def add_event_features(frame: pd.DataFrame, events: pd.DataFrame) -> pd.DataFrame:
+    """For each festival type: days since it last started and days until it next starts.
+
+    Counting days (instead of a yes/no "is it Diwali") lets the model learn
+    how pollution builds up before a festival and how long it lingers after,
+    for example several days of poor air after Diwali. Values are capped at
+    EVENT_WINDOW_DAYS, meaning "not near this festival".
+    """
+    local_day = frame.ts.dt.tz_convert("Asia/Kolkata").dt.normalize().dt.tz_localize(None)
+    days = local_day.to_numpy().astype("datetime64[D]")
+    for event_type in EVENT_TYPES:
+        dates = np.sort(pd.to_datetime(
+            events.loc[events.event_type == event_type, "event_date"]).to_numpy().astype("datetime64[D]"))
+        if len(dates) == 0:
+            frame[f"days_since_{event_type}"] = EVENT_WINDOW_DAYS
+            frame[f"days_until_{event_type}"] = EVENT_WINDOW_DAYS
+            continue
+        # Where each day falls among the festival dates. On the festival day
+        # itself both "since" and "until" are 0.
+        on_or_before = np.searchsorted(dates, days, side="right") - 1  # latest festival today or earlier
+        on_or_after = np.searchsorted(dates, days, side="left")        # next festival today or later
+        since = np.where(on_or_before >= 0,
+                         (days - dates[np.clip(on_or_before, 0, None)]).astype(int), EVENT_WINDOW_DAYS)
+        until = np.where(on_or_after < len(dates),
+                         (dates[np.clip(on_or_after, None, len(dates) - 1)] - days).astype(int), EVENT_WINDOW_DAYS)
+        frame[f"days_since_{event_type}"] = np.minimum(since, EVENT_WINDOW_DAYS).astype("float32")
+        frame[f"days_until_{event_type}"] = np.minimum(until, EVENT_WINDOW_DAYS).astype("float32")
     return frame
 
 
@@ -91,7 +118,8 @@ def load_station_rows(conn: psycopg.Connection, start: str = "2022-08-04") -> pd
     numeric = frame.columns.difference(["ts"])
     frame[numeric] = frame[numeric].apply(pd.to_numeric).astype("float32")
     frame["station_id"] = frame.station_id.astype("int16")
-    return add_weather_features(add_time_features(frame))
+    frame = add_weather_features(add_time_features(frame))
+    return add_event_features(frame, load_events(conn))
 
 
 def target_is_real(frame: pd.DataFrame, target: str) -> pd.Series:

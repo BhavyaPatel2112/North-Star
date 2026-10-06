@@ -1,11 +1,12 @@
 """The hourly collector: keeps the database up to date.
 
-Each run does four independent jobs. One failing never stops the others.
+Each run does independent jobs. One failing never stops the others.
 1. CAMS air quality model: recent hours plus a 3-day forecast (required by the model)
 2. Weather: recent hours plus a 3-day forecast (required by the model)
 3. OpenAQ station readings: re-fetch the last 7 days, clean, upsert
    (late uploads and corrections replace older values)
-4. Health check of every station source, saved to source_checks, so we
+4. Festival calendar: refreshed once a day, so newly published dates flow in
+5. Health check of every station source, saved to source_checks, so we
    know when a broken feed comes back
 
 The data.gov.in and World Air Quality Index readings are only checked and
@@ -24,6 +25,7 @@ import requests
 from northstar import config
 from northstar.clean import openaq as clean
 from northstar.collect import cams, open_meteo
+from northstar.collect.events import refresh_events
 from northstar.collect.openaq_archive import download_recent
 from northstar.collect.stations import location_priority, openaq_location_ids
 from northstar.db.air_readings import refresh_station_dates, upsert_air_readings
@@ -203,7 +205,7 @@ def check_waqi(conn: psycopg.Connection) -> str:
 
 # --- run everything -----------------------------------------------------------
 
-JOBS = [update_cams, update_weather, update_openaq, check_datagovin, check_waqi]
+JOBS = [update_cams, update_weather, update_openaq, refresh_events, check_datagovin, check_waqi]
 
 
 def run_once(conn: psycopg.Connection) -> list[str]:

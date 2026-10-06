@@ -183,3 +183,16 @@ create table if not exists station_features (
 
 alter table grid_cells       enable row level security;
 alter table station_features enable row level security;
+
+-- Festival and event calendar (refreshed automatically by the collector).
+-- Each festival type's first big day; the model measures days before and after.
+create table if not exists events (
+    event_date date not null,
+    event_type text not null,
+    name       text,
+    source     text,
+    fetched_at timestamptz not null default now(),
+    primary key (event_date, event_type)
+);
+
+alter table events enable row level security;
