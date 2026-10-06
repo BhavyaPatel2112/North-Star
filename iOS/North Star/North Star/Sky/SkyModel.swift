@@ -24,6 +24,20 @@ final class SkyModel {
     private let service = ForecastService()
     private var lastLoaded: Date?
 
+    /// Test-only launch options (debug builds only), for screenshots without touching the screen:
+    /// "-place juhu" opens a running spot, "-hoursAhead 8" opens 8 hours ahead.
+    private var launchHoursAhead = 0
+
+    init() {
+        #if DEBUG
+        let arguments = UserDefaults.standard
+        if let id = arguments.string(forKey: "place"), let spot = Place.runningSpots.first(where: { $0.id == id }) {
+            place = spot
+        }
+        launchHoursAhead = arguments.integer(forKey: "hoursAhead")
+        #endif
+    }
+
     /// The hour index currently shown (rounded).
     var index: Int {
         guard let forecast, !forecast.hours.isEmpty else { return 0 }
@@ -52,14 +66,22 @@ final class SkyModel {
 
     var reading: HourReading? { forecast?.hours[safe: index] }
 
-    /// Loads the forecast for a coordinate and jumps to the current hour.
-    func load(latitude: Double, longitude: Double) async {
+    private var isLoading = false
+
+    /// Loads the forecast for a coordinate. A first load (or a new place) starts at the
+    /// current hour; a refresh keeps the user on the same number of hours ahead.
+    func load(latitude: Double, longitude: Double, keepPosition: Bool = false) async {
+        guard !isLoading else { return }  // the screen can ask twice at start-up; one request is enough
+        isLoading = true
+        defer { isLoading = false }
         if forecast == nil { status = .loading }
+        let hoursAhead = keepPosition && forecast != nil ? index - nowIndex : launchHoursAhead
         do {
             let result = try await service.forecast(latitude: latitude, longitude: longitude)
             forecast = result
             lastLoaded = .now
-            position = Double(result.currentIndex())
+            position = Double(min(result.hours.count - 1, max(0, result.currentIndex() + hoursAhead)))
+            launchHoursAhead = 0
             status = result.isInsideCoverage ? .ready : .outsideCoverage
         } catch {
             status = .failed((error as? LocalizedError)?.errorDescription ?? "Could not load the forecast. Check your connection.")

@@ -20,12 +20,12 @@ struct SkyCanvas: View {
                 startPoint: .zero, endPoint: CGPoint(x: 0, y: size.height)))
 
             // 2. Skyline: towers along the bottom, fading with haze.
-            let base = size.height * 0.8
+            let base = size.height * 0.9  // a distant horizon near the bottom edge
             let towerColor = palette.darkness > 0.4
                 ? SkyPalette.RGB(hex: 0x0B1222)
                 : palette.horizon.mixed(with: SkyPalette.RGB(0.16, 0.18, 0.22), 0.55)
             var skyline = context
-            skyline.opacity = 0.55 * (1 - palette.haze * 0.85)
+            skyline.opacity = 0.42 * (1 - palette.haze * 0.85)
             for tower in Skyline.towers {
                 let towerRect = CGRect(x: tower.x * size.width, y: base - tower.height * size.height,
                                        width: tower.width * size.width, height: tower.height * size.height + size.height * 0.2)
@@ -43,7 +43,7 @@ struct SkyCanvas: View {
                             windows.fill(Path(CGRect(x: (tower.x + tower.width * 0.4) * size.width, y: y, width: 2, height: 3)),
                                          with: .color(Color(red: 1, green: 0.85, blue: 0.54)))
                         }
-                        y += 9
+                        y += 7
                     }
                 }
             }
@@ -79,9 +79,9 @@ private enum Skyline {
         }
         var x = 0.0
         while x < 1 {
-            let width = 0.025 + random() * 0.05
+            let width = 0.02 + random() * 0.04
             let tall = x > 0.55 && x < 0.8  // a cluster of taller towers, like Lower Parel
-            let height = 0.04 + random() * (tall ? 0.2 : 0.11)
+            let height = 0.02 + random() * (tall ? 0.1 : 0.05)
             towers.append(Tower(x: x, width: width, height: height))
             x += width + random() * 0.01
         }

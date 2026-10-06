@@ -23,6 +23,7 @@ struct SkyScreen: View {
                 Spacer(minLength: 24)
                 if model.status == .ready { timeline }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)  // keep everything left-aligned in every state
             .padding(.horizontal, 26)
             .padding(.top, 8)
             .padding(.bottom, 18)
@@ -35,7 +36,7 @@ struct SkyScreen: View {
         .task { refresh() }
         .onChange(of: model.place) { refresh() }
         .onChange(of: location.state) { handleLocation() }
-        .onChange(of: scenePhase) { if scenePhase == .active, model.needsRefresh { refresh() } }
+        .onChange(of: scenePhase) { if scenePhase == .active, model.needsRefresh { refresh(keepPosition: true) } }
     }
 
     // MARK: - Pieces
@@ -93,17 +94,20 @@ struct SkyScreen: View {
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
                 .contentTransition(.opacity)
-            HStack(spacing: 8) {
-                Circle().fill(band.color).frame(width: 10, height: 10)
-                    .overlay(Circle().stroke(.white.opacity(0.85), lineWidth: 2))
-                Text(bandLine(band: band, pm25: pm25))
-                Text("Estimated")
-                    .font(.caption2.weight(.semibold))
-                    .textCase(.uppercase)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(.white.opacity(0.6), lineWidth: 1))
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Circle().fill(band.color).frame(width: 10, height: 10)
+                        .overlay(Circle().stroke(.white.opacity(0.85), lineWidth: 2))
+                    Text("\(band.name) · PM2.5 \(Int(pm25.rounded()))")
+                }
+                .font(.callout.weight(.medium))
+                if AirBand.mayReachModerate(pm25: pm25) {
+                    Text("May reach Moderate")
+                        .font(.callout)
+                        .padding(.leading, 18)
+                        .opacity(0.9)
+                }
             }
-            .font(.callout.weight(.medium))
             Text(band.runningAdvice)
                 .font(.title3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -133,8 +137,13 @@ struct SkyScreen: View {
         let fraction = count > 1 ? model.position / Double(count - 1) : 0
         let ahead = model.index - model.nowIndex
         return VStack(spacing: 10) {
-            HStack {
+            HStack(spacing: 8) {
                 Text(timeLabel).font(.callout.weight(.semibold))
+                Text("Estimated")
+                    .font(.caption2.weight(.semibold))
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(.white.opacity(0.6), lineWidth: 1))
                 Spacer()
                 Text(ahead > 0 ? "in \(ahead) h" : ahead < 0 ? "\(-ahead) h ago" : "")
                     .font(.footnote.monospacedDigit())
@@ -183,9 +192,9 @@ struct SkyScreen: View {
             }
     }
 
-    private func refresh() {
+    private func refresh(keepPosition: Bool = false) {
         if let coordinate = model.place.coordinate {
-            Task { await model.load(latitude: coordinate.latitude, longitude: coordinate.longitude) }
+            Task { await model.load(latitude: coordinate.latitude, longitude: coordinate.longitude, keepPosition: keepPosition) }
         } else {
             location.locate()
         }
@@ -204,11 +213,6 @@ struct SkyScreen: View {
     }
 
     // MARK: - Text
-
-    private func bandLine(band: AirBand, pm25: Double) -> String {
-        let warning = AirBand.mayReachModerate(pm25: pm25) ? ", may reach Moderate" : ""
-        return "\(band.name)\(warning) · PM2.5 \(Int(pm25.rounded()))"
-    }
 
     /// Suggest the best window only if it is clearly cleaner than now.
     private func bestWindowSuggestion(currentPM25: Double) -> (index: Int, pm25: Double)? {
