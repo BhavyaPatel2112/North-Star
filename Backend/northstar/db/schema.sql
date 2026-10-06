@@ -117,3 +117,46 @@ alter table station_sources     enable row level security;
 alter table air_readings_hourly enable row level security;
 alter table air_readings_recent enable row level security;
 alter table weather_hourly      enable row level security;
+
+-- CAMS (Copernicus Atmosphere Monitoring Service) air quality model, through
+-- Open-Meteo. A coarse global pollution model that is always available and
+-- forecasts 5 days ahead. Our model learns to correct it using the stations.
+create table if not exists cams_cells (
+    cell_id  smallint primary key,
+    location geography(Point, 4326) not null unique
+);
+
+alter table stations add column if not exists cams_cell_id smallint references cams_cells (cell_id);
+
+-- Hourly CAMS values per grid square, in µg/m³. ts is the start of the hour,
+-- in UTC. Past hours hold CAMS's best estimate; future hours hold its latest
+-- forecast and are overwritten as newer forecasts arrive.
+create table if not exists cams_hourly (
+    cell_id smallint not null references cams_cells (cell_id),
+    ts      timestamptz not null,
+    pm25    real,
+    pm10    real,
+    no2     real,
+    o3      real,
+    co      real,
+    so2     real,
+    dust    real,
+    primary key (cell_id, ts)
+);
+
+alter table cams_cells  enable row level security;
+alter table cams_hourly enable row level security;
+
+-- One row per source per collector run: did it work, and how fresh is its
+-- newest Mumbai reading? Shows when a broken feed comes back.
+create table if not exists source_checks (
+    checked_at         timestamptz not null default now(),
+    source_id          smallint not null references data_sources (source_id),
+    ok                 boolean not null,
+    newest_reading     timestamptz,
+    stations_reporting smallint,
+    message            text,
+    primary key (source_id, checked_at)
+);
+
+alter table source_checks enable row level security;
