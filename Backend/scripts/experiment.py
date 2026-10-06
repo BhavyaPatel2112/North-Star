@@ -62,12 +62,10 @@ def main(target: str) -> None:
     columns = feature_columns(data)
     time_columns, place_columns = split_columns(columns, place_columns)
 
-    no_fires = [c for c in time_columns if not c.startswith("fire_")]
     versions = {
         "raw CAMS": lambda: Cams(target),
-        "one model (first version)": lambda: OneModel(target, [c for c in columns if not c.startswith("fire_")]),
-        "two-part": lambda: TwoPartModel(target, no_fires, place_columns),
-        "two-part + fires": lambda: TwoPartModel(target, time_columns, place_columns),
+        "one model (first version)": lambda: OneModel(target, columns),
+        "two-part": lambda: TwoPartModel(target, time_columns, place_columns),
     }
     if len(sys.argv) > 2:  # only the named versions, e.g. "two-part"
         versions = {k: v for k, v in versions.items() if k in sys.argv[2:]}

@@ -32,6 +32,7 @@ SATELLITES = ["VIIRS_SNPP", "VIIRS_NOAA20"]
 # platform flares (permanent "fires" at sea) are left out.
 REGION = (72.0, 17.0, 76.5, 21.5)  # west, south, east, north
 MAX_DAYS_PER_REQUEST = 5  # the API refuses longer ranges
+KEEP_DAYS = 30  # recent fires kept in the database for the app
 
 
 def _area_request(source: str, day: date, days: int) -> pd.DataFrame:
@@ -109,5 +110,9 @@ def update_recent(conn: psycopg.Connection, days: int = 3) -> str:
         return "Fires: no key"
     fires = download(date.today() - timedelta(days=days - 1), date.today())
     save(conn, fires)
+    # The model does not use fire history (CAMS already includes fire smoke);
+    # the app only shows recent fires, so older detections are removed to
+    # save database space. scripts.download_fire_history can restore them.
+    conn.execute("delete from fires where detected_at < now() - make_interval(days => %s)", (KEEP_DAYS,))
     newest = fires.detected_at.max() if len(fires) else None
     return f"Fires: {len(fires)} detections in the last {days} days, newest {newest}"

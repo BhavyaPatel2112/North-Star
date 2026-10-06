@@ -44,20 +44,3 @@ def test_works_on_filtered_tables_with_gaps_in_row_numbers():
     assert np.isclose(_length_within(points((0, 0)), crossing, 500)[0], 2000, rtol=0.01)
     assert np.isclose(_share_within(points((0, 0)), shapes(box(0, -5000, 5000, 5000)).iloc[[0]], 500)[0], 0.5, rtol=0.02)
 
-
-def test_fire_upwind_score_positive_only_when_wind_blows_from_the_fire():
-    import pandas as pd
-    from northstar.model.dataset import add_fire_features
-
-    # A fire 50 km due north of the station, one hour before.
-    fires = pd.DataFrame({"detected_at": pd.to_datetime(["2025-01-01 10:00"], utc=True),
-                          "latitude": [19.0 + 50 / 111.0], "longitude": [72.9], "frp": [100.0]})
-    locations = pd.DataFrame({"latitude": [19.0], "longitude": [72.9]}, index=[1])
-    ts = pd.to_datetime(["2025-01-01 11:00"] * 2 + ["2025-01-03 11:00"], utc=True)
-    # Wind from the north (0°) blows smoke towards us; wind from the south (180°) blows it away.
-    frame = pd.DataFrame({"station_id": 1, "ts": ts, "wind_dir_deg": [0.0, 180.0, 0.0]})
-    out = add_fire_features(frame, fires, locations)
-    assert out.fire_upwind_300km_24h[0] > 0 > out.fire_upwind_300km_24h[1]
-    assert out.fire_frp_100km_24h[0] == 100 and out.fire_frp_25km_24h[0] == 0
-    assert out.fire_frp_100km_24h[2] == 0  # two days later: outside the 24-hour window
-    assert out.fire_frp_300km_72h[2] == 100  # but still inside the 72-hour window

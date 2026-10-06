@@ -212,3 +212,28 @@ create table if not exists fires (
 create index if not exists fires_detected_at_idx on fires (detected_at);
 
 alter table fires enable row level security;
+
+-- The latest predictions for every hexagon and hour (replaced every run).
+-- h3 is the hexagon id as a number (h3.str_to_int); values are whole µg/m³.
+create table if not exists grid_predictions (
+    h3   bigint not null,
+    ts   timestamptz not null,
+    pm25 smallint,
+    pm10 smallint,
+    no2  smallint,
+    o3   smallint,
+    primary key (h3, ts)
+);
+
+-- One row per prediction run: when it ran and what it was based on.
+create table if not exists prediction_runs (
+    run_at          timestamptz primary key default now(),
+    hours_from      timestamptz,
+    hours_to        timestamptz,
+    rows_written    integer,
+    models_trained  timestamptz,
+    station_data_at timestamptz
+);
+
+alter table grid_predictions enable row level security;
+alter table prediction_runs  enable row level security;
