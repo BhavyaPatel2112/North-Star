@@ -268,3 +268,40 @@ create table if not exists google_readings (
 
 alter table api_usage       enable row level security;
 alter table google_readings enable row level security;
+
+-- What the app calls (through Supabase's web API with its public key):
+-- the forecast for the hexagon nearest a point. Read-only, and the only thing
+-- the public key can reach: every table keeps row level security with no
+-- public policies. "security definer" lets this one function read the
+-- tables on the caller's behalf.
+create or replace function public.app_forecast(lat double precision, lon double precision)
+returns json
+language sql stable security definer
+set search_path = public, extensions
+as $$
+    with here as (
+        select ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography as point
+    ), cell as (
+        select g.h3_index, g.area_name, ST_Distance(g.location, here.point) as distance_m
+        from grid_cells g, here
+        order by g.location <-> here.point
+        limit 1
+    ), hours as (
+        select p.ts, p.pm25, p.pm10, p.no2, p.o3
+        from grid_predictions p, cell
+        -- grid_predictions stores the hexagon id as a number; convert the text id to match
+        where p.h3 = ('x' || lpad(cell.h3_index, 16, '0'))::bit(64)::bigint
+        order by p.ts
+    )
+    select json_build_object(
+        'h3', cell.h3_index,
+        'area', cell.area_name,
+        'distance_m', round(cell.distance_m),
+        'made_at', (select max(run_at) from prediction_runs),
+        'hours', coalesce((select json_agg(hours) from hours), '[]'::json)
+    )
+    from cell;
+$$;
+
+revoke all on function public.app_forecast(double precision, double precision) from public;
+grant execute on function public.app_forecast(double precision, double precision) to anon, authenticated;
