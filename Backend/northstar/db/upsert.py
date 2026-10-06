@@ -14,7 +14,8 @@ def upsert_frame(conn: psycopg.Connection, table: str, frame: pd.DataFrame, key:
     """
     columns = list(frame.columns)
     staging = f"{table}_staging"
-    conn.execute(f"create temporary table if not exists {staging} (like {table})")
+    # "including defaults" so columns we do not send (such as fetched_at) get their default value.
+    conn.execute(f"create temporary table if not exists {staging} (like {table} including defaults)")
     conn.execute(f"truncate {staging}")
     with conn.cursor().copy(f"copy {staging} ({', '.join(columns)}) from stdin") as copy:
         for row in frame.itertuples(index=False):

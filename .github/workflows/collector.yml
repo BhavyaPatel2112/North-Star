@@ -1,6 +1,7 @@
 # Runs North Star's hourly jobs on GitHub's servers:
 # 1. the collector: CAMS and weather forecasts, OpenAQ station readings,
-#    fires, festival calendar, and health checks of every source
+#    fires, festival calendar, Google Air Quality at 20 comparison points,
+#    and health checks of every source
 # 2. predictions for every map hexagon for the next 36 hours
 #
 # Secrets (database address and API keys) are stored in the repository's
@@ -8,10 +9,13 @@
 
 name: Hourly collector and predictions
 
+# Started every hour at minute 17 by an external timer (cron-job.org), which
+# calls GitHub's "run workflow" API with a token limited to this repository's
+# Actions. GitHub's own schedule was unreliable for this repository (no runs
+# for 5 hours after it was added), so it is not used. The same trigger also
+# gives a "Run workflow" button for manual runs.
 on:
-  schedule:
-    - cron: "17 * * * *"   # every hour at minute 17 (UTC); avoids the busy top of the hour
-  workflow_dispatch:         # adds a "Run workflow" button for manual runs
+  workflow_dispatch:
 
 # Never run two collectors at the same time.
 concurrency:
@@ -44,6 +48,9 @@ jobs:
           DATAGOVIN_API_KEY: ${{ secrets.DATAGOVIN_API_KEY }}
           WAQI_TOKEN: ${{ secrets.WAQI_TOKEN }}
           FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          GOOGLE_AIR_QUALITY_KEY: ${{ secrets.GOOGLE_AIR_QUALITY_KEY }}
+          # Monthly Google request limit (spending guard). Raise only on purpose.
+          GOOGLE_MONTHLY_LIMIT: "55000"
         run: python -m scripts.run_collector
 
       - name: Predict the map
