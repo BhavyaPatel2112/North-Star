@@ -19,7 +19,7 @@ def main() -> None:
     for target, info in train_all(training, place_columns).items():
         size = (MODELS_DIR / f"{target}.joblib").stat().st_size / 1e6
         print(f"  {target}: {info['rows']:,} hours from {info['stations']} stations, "
-              f"data until {info['data_until']:%Y-%m-%d}, file {size:.1f} MB")
+              f"data until {info['data_until']:%Y-%m-%d}, calibrated: {info['calibrated']}, file {size:.1f} MB")
 
 
 if __name__ == "__main__":

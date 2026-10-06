@@ -32,6 +32,8 @@ def predict_grid(conn: psycopg.Connection) -> str:
     })
     for target in TARGETS:
         values = models[target]["model"].predict(rows)
+        if models[target].get("calibrator") is not None:
+            values = models[target]["calibrator"].apply(values)
         result[target] = np.clip(np.round(values), 0, 32767).astype("int16")
 
     with conn.transaction():
