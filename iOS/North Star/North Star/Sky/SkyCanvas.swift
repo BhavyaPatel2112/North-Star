@@ -25,7 +25,7 @@ struct SkyCanvas: View {
                 ? SkyPalette.RGB(hex: 0x0B1222)
                 : palette.horizon.mixed(with: SkyPalette.RGB(0.16, 0.18, 0.22), 0.55)
             var skyline = context
-            skyline.opacity = 0.42 * (1 - palette.haze * 0.85)
+            skyline.opacity = 0.42 * (1 - palette.haze * 0.9)
             for tower in Skyline.towers {
                 let towerRect = CGRect(x: tower.x * size.width, y: base - tower.height * size.height,
                                        width: tower.width * size.width, height: tower.height * size.height + size.height * 0.2)

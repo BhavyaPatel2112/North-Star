@@ -28,8 +28,10 @@ struct SkyScreen: View {
             .padding(.horizontal, 26)
             .padding(.top, 8)
             .padding(.bottom, 18)
-            .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.15), radius: 10, y: 1)
+            .foregroundStyle(ink)
+            .tint(ink)
+            .shadow(color: .black.opacity(ink == .white ? 0.15 : 0), radius: 10, y: 1)
+            .animation(.easeInOut(duration: 0.4), value: ink == .white)
         }
         .contentShape(Rectangle())
         .gesture(scrub)
@@ -38,6 +40,11 @@ struct SkyScreen: View {
         .onChange(of: model.place) { refresh() }
         .onChange(of: location.state) { handleLocation() }
         .onChange(of: scenePhase) { if scenePhase == .active, model.needsRefresh { refresh(keepPosition: true) } }
+    }
+
+    /// Text colour that stays readable on the current sky.
+    private var ink: Color {
+        SkyPalette(pm25: model.smoothPM25, hourOfDay: model.smoothHourOfDay).ink
     }
 
     // MARK: - Pieces
@@ -58,7 +65,6 @@ struct SkyScreen: View {
                 Image(systemName: "chevron.down").font(.caption.weight(.semibold))
             }
         }
-        .tint(.white)
         .accessibilityLabel("Place: \(model.place.name)")
     }
 
@@ -76,7 +82,6 @@ struct SkyScreen: View {
                 message(title: "No sky", text: text)
                 Button("Try again") { refresh() }
                     .buttonStyle(.bordered)
-                    .tint(.white)
             }
         case .ready:
             if let reading = model.reading {
@@ -98,7 +103,7 @@ struct SkyScreen: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Circle().fill(band.color).frame(width: 10, height: 10)
-                        .overlay(Circle().stroke(.white.opacity(0.85), lineWidth: 2))
+                        .overlay(Circle().stroke(ink.opacity(0.85), lineWidth: 2))
                     Text("\(band.name) · PM2.5 \(Int(pm25.rounded()))")
                 }
                 .font(.callout.weight(.medium))
@@ -144,7 +149,7 @@ struct SkyScreen: View {
                     .font(.caption2.weight(.semibold))
                     .textCase(.uppercase)
                     .padding(.horizontal, 6).padding(.vertical, 2)
-                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(.white.opacity(0.6), lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(ink.opacity(0.6), lineWidth: 1))
                 Spacer()
                 Text(ahead > 0 ? "in \(ahead) h" : ahead < 0 ? "\(-ahead) h ago" : "")
                     .font(.footnote.monospacedDigit())
@@ -152,8 +157,8 @@ struct SkyScreen: View {
             }
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.35)).frame(height: 2)
-                    Circle().fill(.white).frame(width: 16, height: 16)
+                    Capsule().fill(ink.opacity(0.35)).frame(height: 2)
+                    Circle().fill(ink).frame(width: 16, height: 16)
                         .offset(x: geometry.size.width * fraction - 8)
                 }
                 .frame(maxHeight: .infinity)

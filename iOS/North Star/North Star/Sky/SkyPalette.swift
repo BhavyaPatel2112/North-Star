@@ -17,6 +17,8 @@ struct SkyPalette {
             RGB(r + (other.r - r) * t, g + (other.g - g) * t, b + (other.b - b) * t)
         }
         var color: Color { Color(red: r, green: g, blue: b) }
+        /// Perceived brightness, 0 (black) to 1 (white).
+        var luminance: Double { 0.2126 * r + 0.7152 * g + 0.0722 * b }
     }
 
     /// Daytime sky per band: (top, horizon). Clear blue through haze to brown.
@@ -31,12 +33,13 @@ struct SkyPalette {
     static let nightTop = RGB(hex: 0x0E1A33)
     static let nightHorizon = RGB(hex: 0x2A3550)
     static let hazeTint = RGB(hex: 0xEBDCBE)
+    static let nightGlow = RGB(hex: 0x7A5238)  // sodium-orange city glow seen through haze
 
     let top: RGB
     let horizon: RGB
     /// 0 in daylight, up to about 0.8 at night.
     let darkness: Double
-    /// 0 for clean air, 1 for very polluted air (controls haze and skyline fading).
+    /// 0 for clean air, 1 for very polluted air (controls haze, glow and skyline fading).
     let haze: Double
 
     init(pm25: Double, hourOfDay: Double) {
@@ -45,10 +48,32 @@ struct SkyPalette {
         let dayTop = Self.daySkies[lower].0.mixed(with: Self.daySkies[upper].0, t)
         let dayHorizon = Self.daySkies[lower].1.mixed(with: Self.daySkies[upper].1, t)
 
+        // Haze builds from about 12 to 92 µg/m³, rising fastest across the common
+        // Satisfactory range, so 32 and 58 look clearly different, not just their word.
+        haze = pow(min(1, max(0, (pm25 - 12) / 80)), 0.8)
         darkness = Self.darkness(hourOfDay: hourOfDay)
-        top = dayTop.mixed(with: Self.nightTop, darkness)
-        horizon = dayHorizon.mixed(with: Self.nightHorizon, darkness * 0.9)
-        haze = min(1, max(0, (pm25 - 15) / 110))
+
+        // Daytime haze washes the blue out towards a pale, dusty white.
+        let washedTop = dayTop.mixed(with: Self.hazeTint, haze * 0.35)
+        let washedHorizon = dayHorizon.mixed(with: Self.hazeTint, haze * 0.25)
+
+        // At night, polluted air glows orange-brown: city lights scatter off the
+        // particles. Clean nights stay deep blue.
+        let nightGlowTop = Self.nightTop.mixed(with: Self.nightGlow, haze * 0.35)
+        let nightGlowHorizon = Self.nightHorizon.mixed(with: Self.nightGlow, haze * 0.75)
+
+        top = washedTop.mixed(with: nightGlowTop, darkness)
+        horizon = washedHorizon.mixed(with: nightGlowHorizon, darkness * 0.9)
+    }
+
+    /// Ink for text on this sky: dark on pale, hazy daytime skies (from about
+    /// PM2.5 40), white on clear blue skies and at night. Deciding by haze rather
+    /// than brightness keeps the choice stable while dragging through the day,
+    /// and the switch itself quietly signals that the air has turned hazy.
+    var ink: Color {
+        haze >= 0.42 && darkness < 0.3
+            ? Color(red: 0.16, green: 0.15, blue: 0.13)
+            : .white
     }
 
     /// Full night from 8 pm to 5 am, with dusk (6:30 to 8 pm) and dawn (5 to 6:30 am) in between.
