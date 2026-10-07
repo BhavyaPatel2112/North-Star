@@ -28,6 +28,8 @@ DAILY_LIMIT = int(os.getenv("GOOGLE_PLACES_DAILY_LIMIT", "60"))
 
 MIN_RATING = 4.0
 MIN_REVIEWS = 100
+# Places that are rated well but are not somewhere to walk into after a run.
+NOT_AFTER_A_RUN = ("banquet", "bar & lounge", "lounge", "pub", "wine", "hall")
 # Only the fields we use; the rating fields set the price tier (Enterprise).
 FIELDS = ",".join(f"places.{f}" for f in
                   ("id", "displayName", "location", "rating", "userRatingCount", "businessStatus", "primaryType"))
@@ -94,6 +96,9 @@ def search(conn, lat: float, lon: float, radius_m: float) -> FoodSearch:
         if place.get("businessStatus", "OPERATIONAL") != "OPERATIONAL":
             continue
         if rating < MIN_RATING or reviews < MIN_REVIEWS:
+            continue
+        name = place.get("displayName", {}).get("text", "")
+        if any(word in name.lower() for word in NOT_AFTER_A_RUN):
             continue
         places.append({"name": place.get("displayName", {}).get("text", "Restaurant"),
                        "lat": place["location"]["latitude"], "lon": place["location"]["longitude"],
