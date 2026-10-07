@@ -9,14 +9,19 @@ struct Place: Identifiable, Hashable {
 
     static let current = Place(id: "current", name: "Current location", coordinate: nil)
 
-    /// Popular running spots, used until saved places arrive (and when location is off).
+    /// Popular running spots: always offered as starts. Each point sits on the
+    /// spot's own promenade or road, and each was checked to give real 5 km loops
+    /// on the street network (Oct 2026). Juhu Beach and the National Park gate are
+    /// left out: routes from there failed the walking check or could only go out and back.
     static let runningSpots: [Place] = [
-        Place(id: "juhu", name: "Juhu Beach", lat: 19.0980, lon: 72.8260),
-        Place(id: "bandstand", name: "Bandra Bandstand", lat: 19.0430, lon: 72.8190),
-        Place(id: "worli", name: "Worli Sea Face", lat: 19.0090, lon: 72.8160),
-        Place(id: "powai", name: "Powai Lake", lat: 19.1270, lon: 72.9060),
-        Place(id: "sgnp", name: "Sanjay Gandhi National Park gate", lat: 19.2290, lon: 72.8640),
-        Place(id: "upvan", name: "Upvan Lake, Thane", lat: 19.2223, lon: 72.9580),
+        Place(id: "bandstand", name: "Bandra Bandstand", lat: 19.0429, lon: 72.8186),
+        Place(id: "carter", name: "Carter Road", lat: 19.0656, lon: 72.8232),
+        Place(id: "worli", name: "Worli Sea Face", lat: 19.0088, lon: 72.8149),
+        Place(id: "marine", name: "Marine Drive", lat: 18.9439, lon: 72.8234),
+        Place(id: "shivaji", name: "Shivaji Park", lat: 19.0259, lon: 72.8394),
+        Place(id: "powai", name: "Powai Lake", lat: 19.1239, lon: 72.9101),
+        Place(id: "oval", name: "Oval Maidan", lat: 18.9290, lon: 72.8266),
+        Place(id: "upvan", name: "Upvan Lake, Thane", lat: 19.2244, lon: 72.9585),
         Place(id: "vashi", name: "Vashi, Navi Mumbai", lat: 19.0770, lon: 72.9990),
     ]
 

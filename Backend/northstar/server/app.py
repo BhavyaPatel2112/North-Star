@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 
 from northstar import config
 from northstar.db.connection import connect
-from northstar.routing import walk_check
+from northstar.routing import food, walk_check
 from northstar.routing.network import StreetNetwork
 from northstar.routing.planner import Planner, google_maps_link, road_mix, steps
 from northstar.server.forecast import INDIA, ForecastCache, best_start
@@ -76,6 +76,9 @@ class RouteRequest(BaseModel):
     start_time: datetime | None = Field(default=None, description="When the run starts (default: now)")
     finish_places: list[Place] = Field(default=[], max_length=20,
                                        description="Optional finishes, such as cafes (one way only)")
+    end_near_food: bool = Field(default=False, description="End at a popular, well-rated restaurant or cafe "
+                                "(Google Places; finish_places are used if Google is unavailable)")
+    allow_busy_roads: bool = Field(default=False, description="Allow highway crossings and mostly-main-road routes")
 
 
 # ---------- endpoints ----------
@@ -93,7 +96,7 @@ def plan_routes(request: RouteRequest) -> dict:
     south, west, north, east = config.MUMBAI_BBOX
     if not (south <= request.lat <= north and west <= request.lon <= east):
         raise HTTPException(status_code=422, detail="Start is outside the area North Star covers.")
-    if request.finish_places and request.kind != "one_way":
+    if (request.finish_places or request.end_near_food) and request.kind != "one_way":
         raise HTTPException(status_code=422, detail="Finishing places only work with one-way runs.")
 
     planner: Planner = state["planner"]
@@ -106,13 +109,26 @@ def plan_routes(request: RouteRequest) -> dict:
     exposure = forecast.exposure[hour]
 
     distance_m = request.distance_km * 1000
-    if request.finish_places:
-        places = [p.model_dump() for p in request.finish_places]
-        candidates = planner.to_places(request.lat, request.lon, distance_m, exposure, places, CANDIDATES)
-    elif request.kind == "one_way":
-        candidates = planner.one_way(request.lat, request.lon, distance_m, exposure, CANDIDATES)
-    else:
-        candidates = planner.round_trips(request.lat, request.lon, distance_m, exposure, CANDIDATES)
+    places = [p.model_dump() for p in request.finish_places]
+    food_source = None
+    if request.end_near_food:
+        with connect() as conn:
+            found = food.search(conn, request.lat, request.lon, distance_m * 0.9)
+        if found.places:
+            places, food_source = found.places, "google"
+        else:
+            food_source = f"apple ({found.source})" if places else None
+
+    avoid = not request.allow_busy_roads
+
+    def plan(avoid_busy: bool) -> list:
+        if places:
+            return planner.to_places(request.lat, request.lon, distance_m, exposure, places, CANDIDATES, avoid_busy)
+        if request.kind == "one_way":
+            return planner.one_way(request.lat, request.lon, distance_m, exposure, CANDIDATES, avoid_busy)
+        return planner.round_trips(request.lat, request.lon, distance_m, exposure, CANDIDATES, avoid_busy)
+
+    candidates = plan(avoid)
 
     # Cleanest first; ask Google about each until SHOWN routes are confirmed.
     shown, rejected = [], 0
@@ -127,14 +143,25 @@ def plan_routes(request: RouteRequest) -> dict:
             if len(shown) == SHOWN:
                 break
 
+    message = None
+    if not shown:
+        if request.end_near_food and not places:
+            message = "No popular, well-rated places to eat found within reach. Try a longer distance."
+        elif avoid and not candidates and plan(False):
+            # Routes exist, but all of them cross a highway or follow main roads (planning is fast, no Google).
+            message = ("Every route of that distance from here crosses a highway or runs mostly on main roads. "
+                       "Turn on \"OK with highways\" to see them, or try another distance.")
+        else:
+            message = "No walkable route of that distance found here. Try a slightly different start or distance."
+
     return {
         "forecast_hour": forecast.hours[hour].astimezone(INDIA).isoformat(),
         "forecast_run": forecast.run_at.isoformat() if forecast.run_at else None,
         "options": shown,
         "planned": len(candidates),
         "rejected_by_walk_check": rejected,
-        "message": None if shown else "No walkable route of that distance found here. "
-                                      "Try a slightly different start or distance.",
+        "food_source": food_source,
+        "message": message,
     }
 
 
@@ -152,6 +179,8 @@ def describe(planner: Planner, forecast: ForecastCache, option, shape: list, exp
         "quiet_share": round(option.quiet_share, 2),
         "main_road_share": round(option.main_road_share, 2),
         "repeated_share": round(option.repeated_share, 2),
+        "highway_crossings": option.highway_crossings,
+        "busy_km": round(option.busy_km, 2),
         "road_km": road_mix(planner, option),
         "finish": {"lat": option.finish[0], "lon": option.finish[1]},
         "finish_place": option.extra.get("place"),

@@ -11,17 +11,19 @@ struct SkyScreen: View {
     /// True while the user drags through time, so the pager pauses vertical scrolling.
     @Binding var scrubbing: Bool
     let onShowPlaces: () -> Void
+    let onPlanRun: (Place) -> Void
 
     @State private var model: SkyModel
     @State private var dragStart: Double?
     @Environment(\.scenePhase) private var scenePhase
 
     init(place: Place, location: LocationProvider, insets: EdgeInsets, scrubbing: Binding<Bool>,
-         hoursAhead: Int = 0, onShowPlaces: @escaping () -> Void) {
+         hoursAhead: Int = 0, onShowPlaces: @escaping () -> Void, onPlanRun: @escaping (Place) -> Void) {
         self.location = location
         self.insets = insets
         self._scrubbing = scrubbing
         self.onShowPlaces = onShowPlaces
+        self.onPlanRun = onPlanRun
         self._model = State(initialValue: SkyModel(place: place, hoursAhead: hoursAhead))
     }
 
@@ -36,7 +38,12 @@ struct SkyScreen: View {
                 .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 0) {
-                placeMenu.legible(ink)
+                HStack {
+                    placeMenu
+                    Spacer()
+                    planButton
+                }
+                .legible(ink)
                 Spacer(minLength: 24)
                 centre(ink: ink).legible(ink)
                 Spacer(minLength: 24)
@@ -71,6 +78,15 @@ struct SkyScreen: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Place: \(model.place.name). Opens your places.")
+    }
+
+    private var planButton: some View {
+        Button { onPlanRun(model.place) } label: {
+            Label("Plan a run", systemImage: "figure.run")
+                .font(.body.weight(.medium))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Find a cleaner route from this place.")
     }
 
     @ViewBuilder
@@ -290,5 +306,5 @@ private extension View {
 
 #Preview {
     SkyScreen(place: Place.runningSpots[0], location: LocationProvider(), insets: EdgeInsets(),
-              scrubbing: .constant(false), onShowPlaces: {})
+              scrubbing: .constant(false), onShowPlaces: {}, onPlanRun: { _ in })
 }

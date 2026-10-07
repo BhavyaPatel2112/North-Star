@@ -9,13 +9,18 @@ struct SkyPager: View {
     @State private var selection: String? = Place.current.id
     @State private var scrubbing = false
     @State private var showingPlaces = false
+    /// The place a run is being planned from (opens the planner).
+    @State private var planningFrom: Place?
 
     @Environment(\.modelContext) private var context
 
     /// Debug-only launch options for screenshots without touching the screen:
-    /// "-place juhu" shows one running spot, "-hoursAhead 8" opens 8 hours ahead,
+    /// "-place worli" shows one running spot, "-hoursAhead 8" opens 8 hours ahead,
     /// "-seedPlaces YES" adds sample places if there are none, "-page 2" opens the
-    /// third page, "-showPlaces YES" opens the places list.
+    /// third page, "-showPlaces YES" opens the places list. Run planner:
+    /// "-planLat 19.0269 -planLon 72.8382" (or "-planCurrent YES") opens the planner, and
+    /// "-planKm 5 -planKind one_way -planAuto YES -planDetail YES" plans straight away
+    /// and opens the first route (each plan uses up to 6 Google walking checks).
     private let debugPlace: Place?
     private let debugHoursAhead: Int
 
@@ -47,6 +52,11 @@ struct SkyPager: View {
             }
         }
         if defaults.bool(forKey: "showPlaces") { showingPlaces = true }
+        if defaults.bool(forKey: "planCurrent") { planningFrom = .current }
+        if defaults.object(forKey: "planLat") != nil {
+            planningFrom = Place(id: "debug-plan", name: "Test start",
+                                 lat: defaults.double(forKey: "planLat"), lon: defaults.double(forKey: "planLon"))
+        }
         #endif
     }
 
@@ -61,9 +71,9 @@ struct SkyPager: View {
                 LazyVStack(spacing: 0) {
                     ForEach(places) { place in
                         SkyScreen(place: place, location: location, insets: geometry.safeAreaInsets,
-                                  scrubbing: $scrubbing, hoursAhead: debugHoursAhead) {
-                            showingPlaces = true
-                        }
+                                  scrubbing: $scrubbing, hoursAhead: debugHoursAhead,
+                                  onShowPlaces: { showingPlaces = true },
+                                  onPlanRun: { planningFrom = $0 })
                         .containerRelativeFrame([.horizontal, .vertical])
                         .id(place.id)
                     }
@@ -80,6 +90,9 @@ struct SkyPager: View {
         .onAppear(perform: applyDebugOptions)
         .sheet(isPresented: $showingPlaces) {
             PlacesSheet(selection: $selection, location: location)
+        }
+        .sheet(item: $planningFrom) { place in
+            PlannerView(start: place, location: location)
         }
     }
 
