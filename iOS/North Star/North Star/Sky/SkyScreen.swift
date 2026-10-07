@@ -29,16 +29,18 @@ struct SkyScreen: View {
     private let pointsPerHour: CGFloat = 14
 
     var body: some View {
+        // Worked out once per frame and shared by everything on the page.
+        let ink = SkyPalette(pm25: model.smoothPM25, hourOfDay: model.smoothHourOfDay).ink
         ZStack {
-            SkyCanvas(pm25: model.smoothPM25, hourOfDay: model.smoothHourOfDay)
+            ForecastSky(position: model.position, track: model.track)
                 .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 0) {
-                placeMenu
+                placeMenu.legible(ink)
                 Spacer(minLength: 24)
-                centre
+                centre(ink: ink).legible(ink)
                 Spacer(minLength: 24)
-                if model.status == .ready { timeline }
+                if model.status == .ready { timeline(ink: ink) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)  // keep everything left-aligned in every state
             .padding(.horizontal, 26)
@@ -46,7 +48,6 @@ struct SkyScreen: View {
             .padding(.bottom, insets.bottom + 18)
             .foregroundStyle(ink)
             .tint(ink)
-            .shadow(color: .black.opacity(ink == .white ? 0.15 : 0), radius: 10, y: 1)
             .animation(.easeInOut(duration: 0.4), value: ink == .white)
         }
         .contentShape(Rectangle())
@@ -55,11 +56,6 @@ struct SkyScreen: View {
         .task { refresh() }
         .onChange(of: location.state) { handleLocation() }
         .onChange(of: scenePhase) { if scenePhase == .active, model.needsRefresh { refresh(keepPosition: true) } }
-    }
-
-    /// Text colour that stays readable on the current sky.
-    private var ink: Color {
-        SkyPalette(pm25: model.smoothPM25, hourOfDay: model.smoothHourOfDay).ink
     }
 
     // MARK: - Pieces
@@ -78,7 +74,7 @@ struct SkyScreen: View {
     }
 
     @ViewBuilder
-    private var centre: some View {
+    private func centre(ink: Color) -> some View {
         switch model.status {
         case .loading:
             message(title: "…", text: "Reading the sky")
@@ -94,12 +90,12 @@ struct SkyScreen: View {
             }
         case .ready:
             if let reading = model.reading {
-                readingView(reading)
+                readingView(reading, ink: ink)
             }
         }
     }
 
-    private func readingView(_ reading: HourReading) -> some View {
+    private func readingView(_ reading: HourReading, ink: Color) -> some View {
         let band = reading.band
         let pm25 = reading.pm25Value
         return VStack(alignment: .leading, spacing: 12) {
@@ -128,7 +124,7 @@ struct SkyScreen: View {
                 .fixedSize(horizontal: false, vertical: true)
             if model.index == model.nowIndex, let best = bestWindowSuggestion(currentPM25: pm25) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.8)) { model.position = Double(best.index) }
+                    withAnimation(.smooth(duration: 0.9)) { model.position = Double(best.index) }
                 } label: {
                     Text("Cleanest around \(Self.time(model.forecast!.hours[best.index].start)) →")
                         .font(.callout.weight(.semibold))
@@ -147,7 +143,7 @@ struct SkyScreen: View {
         }
     }
 
-    private var timeline: some View {
+    private func timeline(ink: Color) -> some View {
         let count = model.forecast?.hours.count ?? 1
         let fraction = count > 1 ? model.position / Double(count - 1) : 0
         let ahead = model.index - model.nowIndex
@@ -164,10 +160,12 @@ struct SkyScreen: View {
                     .font(.footnote.monospacedDigit())
                     .opacity(0.8)
             }
+            .legible(ink)
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Capsule().fill(ink.opacity(0.35)).frame(height: 2)
                     Circle().fill(ink).frame(width: 16, height: 16)
+                        .shadow(color: .black.opacity(ink == .white ? 0.2 : 0), radius: 2)
                         .offset(x: geometry.size.width * fraction - 8)
                 }
                 .frame(maxHeight: .infinity)
@@ -177,9 +175,11 @@ struct SkyScreen: View {
                 .font(.caption.monospaced())
                 .opacity(0.75)
                 .frame(maxWidth: .infinity)
+                .legible(ink)
             if let madeAt = model.forecast?.madeAt, Date.now.timeIntervalSince(madeAt) > 3 * 3600 {
                 Text("Forecast from \(Int(Date.now.timeIntervalSince(madeAt) / 3600)) hours ago")
                     .font(.caption).opacity(0.8)
+                    .legible(ink)
             }
         }
     }
@@ -208,11 +208,17 @@ struct SkyScreen: View {
                 let target = dragStart! + Double(value.translation.width / pointsPerHour)
                 model.position = min(Double(count - 1), max(0, target))
             }
-            .onEnded { _ in
-                guard dragStart != nil else { return }
+            .onEnded { value in
+                guard let start = dragStart, let count = model.forecast?.hours.count else { return }
                 dragStart = nil
                 scrubbing = false
-                withAnimation(.easeOut(duration: 0.2)) { model.position = model.position.rounded() }
+                // A quick flick carries on a little (up to 4 hours), like flicking a
+                // list, then settles on a whole hour with a soft spring.
+                let flick = (value.predictedEndTranslation.width - value.translation.width) / pointsPerHour
+                let target = start + Double(value.translation.width / pointsPerHour) + min(4, max(-4, Double(flick)))
+                withAnimation(.smooth(duration: 0.45)) {
+                    model.position = min(Double(count - 1), max(0, target.rounded()))
+                }
             }
     }
 
@@ -271,6 +277,15 @@ struct SkyScreen: View {
 
     static func time(_ date: Date) -> String { timeFormatter.string(from: date) }
     static func weekday(_ date: Date) -> String { weekdayFormatter.string(from: date) }
+}
+
+private extension View {
+    /// A soft shadow that keeps white text readable on pale skies. Applied to the
+    /// text blocks separately (not the whole page), so moving the time knob does
+    /// not force every shadow on the page to be redrawn.
+    func legible(_ ink: Color) -> some View {
+        shadow(color: .black.opacity(ink == .white ? 0.15 : 0), radius: 10, y: 1)
+    }
 }
 
 #Preview {

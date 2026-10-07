@@ -39,23 +39,14 @@ final class SkyModel {
 
     var nowIndex: Int { forecast?.currentIndex() ?? 0 }
 
+    /// The forecast as a smooth track the sky can sample at any position (built once per load).
+    private(set) var track: SkyTrack?
+
     /// PM2.5 at the exact (possibly fractional) position, so colours glide while dragging.
-    var smoothPM25: Double {
-        guard let hours = forecast?.hours, !hours.isEmpty else { return 20 }
-        let lower = min(hours.count - 1, max(0, Int(position.rounded(.down))))
-        let upper = min(hours.count - 1, lower + 1)
-        let t = position - Double(lower)
-        return hours[lower].pm25Value + (hours[upper].pm25Value - hours[lower].pm25Value) * t
-    }
+    var smoothPM25: Double { track?.sample(at: position).pm25 ?? 20 }
 
     /// Hour of day on a Mumbai clock at the shown position (fractional while dragging).
-    var smoothHourOfDay: Double {
-        guard let hours = forecast?.hours, !hours.isEmpty else {
-            return Self.hourOfDay(.now)
-        }
-        let lower = min(hours.count - 1, max(0, Int(position.rounded(.down))))
-        return (Self.hourOfDay(hours[lower].start) + (position - Double(lower))).truncatingRemainder(dividingBy: 24)
-    }
+    var smoothHourOfDay: Double { track?.sample(at: position).hourOfDay ?? Self.hourOfDay(.now) }
 
     var reading: HourReading? { forecast?.hours[safe: index] }
 
@@ -72,6 +63,7 @@ final class SkyModel {
         do {
             let result = try await service.forecast(latitude: latitude, longitude: longitude)
             forecast = result
+            track = SkyTrack(result)
             lastLoaded = .now
             position = Double(min(result.hours.count - 1, max(0, result.currentIndex() + hoursAhead)))
             launchHoursAhead = 0
@@ -81,7 +73,7 @@ final class SkyModel {
         }
     }
 
-    func showLocationOff() { status = .locationOff; forecast = nil }
+    func showLocationOff() { status = .locationOff; forecast = nil; track = nil }
 
     /// True when the data is old enough to fetch again (the backend updates hourly).
     var needsRefresh: Bool {
@@ -92,6 +84,30 @@ final class SkyModel {
     static func hourOfDay(_ date: Date) -> Double {
         let parts = Calendar.mumbai.dateComponents([.hour, .minute], from: date)
         return Double(parts.hour ?? 0) + Double(parts.minute ?? 0) / 60
+    }
+}
+
+/// PM2.5 and time of day for every forecast hour, ready to be sampled between
+/// hours. Kept separate from the model so the sky can animate smoothly: an
+/// animation moves the position, and the sky asks the track for the colours at
+/// each in-between frame (crossing midnight correctly, never back through the day).
+struct SkyTrack: Equatable {
+    let pm25: [Double]
+    let hourOfDay: [Double]
+
+    init(_ forecast: Forecast) {
+        pm25 = forecast.hours.map(\.pm25Value)
+        hourOfDay = forecast.hours.map { SkyModel.hourOfDay($0.start) }
+    }
+
+    func sample(at position: Double) -> (pm25: Double, hourOfDay: Double) {
+        guard !pm25.isEmpty else { return (20, SkyModel.hourOfDay(.now)) }
+        let lower = min(pm25.count - 1, max(0, Int(position.rounded(.down))))
+        let upper = min(pm25.count - 1, lower + 1)
+        let t = min(1, max(0, position - Double(lower)))
+        let value = pm25[lower] + (pm25[upper] - pm25[lower]) * t
+        let hour = (hourOfDay[lower] + t).truncatingRemainder(dividingBy: 24)
+        return (value, hour)
     }
 }
 
