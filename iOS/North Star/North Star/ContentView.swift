@@ -1,19 +1,38 @@
 import SwiftUI
 
 /// The app's root view: the tabs (Today, Plan, Journey), with the opening star
-/// animation on top when the app starts.
+/// on top when the app starts, and the story if the user asks "Why the North Star?".
 struct ContentView: View {
-    @State private var showIntro = !UserDefaults.standard.bool(forKey: "skipIntro")  // "-skipIntro YES" for tests
+    enum Intro { case star, story, none }
+
+    @State private var intro: Intro = {
+        #if DEBUG
+        // "-skipIntro YES" goes straight to the app; "-story 3" opens the story at scene 4.
+        if UserDefaults.standard.object(forKey: "story") != nil { return .story }
+        #endif
+        return UserDefaults.standard.bool(forKey: "skipIntro") ? .none : .star
+    }()
 
     var body: some View {
         ZStack {
             main
-            if showIntro {
-                LaunchStar { showIntro = false }
+            switch intro {
+            case .star:
+                LaunchStar(onEnter: { leave(to: .none) }, onStory: { leave(to: .story) })
                     .transition(.opacity)
                     .zIndex(1)
+            case .story:
+                StoryView(startAt: UserDefaults.standard.integer(forKey: "story")) { leave(to: .none) }
+                    .transition(.opacity)
+                    .zIndex(2)
+            case .none:
+                EmptyView()
             }
         }
+    }
+
+    private func leave(to next: Intro) {
+        withAnimation(.easeInOut(duration: 0.8)) { intro = next }
     }
 
     @ViewBuilder
