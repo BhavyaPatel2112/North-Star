@@ -259,6 +259,7 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "NorthStar-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "North Star";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "North Star uses your location to show the air quality where you are. Your location is not stored.";
@@ -305,6 +306,7 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "NorthStar-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "North Star";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "North Star uses your location to show the air quality where you are. Your location is not stored.";

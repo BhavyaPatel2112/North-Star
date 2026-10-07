@@ -1,8 +1,23 @@
 import SwiftUI
 
-/// The app's root view: the skies of your places, one per page.
+/// The app's root view: the skies of your places, one per page, with the
+/// opening star animation on top when the app starts.
 struct ContentView: View {
+    @State private var showIntro = !UserDefaults.standard.bool(forKey: "skipIntro")  // "-skipIntro YES" for tests
+
     var body: some View {
+        ZStack {
+            main
+            if showIntro {
+                LaunchStar { showIntro = false }
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var main: some View {
         #if DEBUG
         if UserDefaults.standard.object(forKey: "previewPM25") != nil {
             SkyDesignPreview(pm25: UserDefaults.standard.double(forKey: "previewPM25"),
