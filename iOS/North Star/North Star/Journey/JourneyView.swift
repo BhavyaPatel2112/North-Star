@@ -13,6 +13,7 @@ struct JourneyView: View {
 
     /// Total height of the journey picture, in points.
     private let height: CGFloat = 2300
+    @State private var showingStory = false
 
     var body: some View {
         ScrollViewReader { reader in
@@ -35,6 +36,11 @@ struct JourneyView: View {
             .ignoresSafeArea(edges: .top)
             .background(JourneyColours.plains)
             .overlay(alignment: .top) { header }
+            #if os(iOS)
+            .fullScreenCover(isPresented: $showingStory) { StoryView { showingStory = false } }
+            #else
+            .sheet(isPresented: $showingStory) { StoryView { showingStory = false }.frame(minWidth: 420, minHeight: 760) }
+            #endif
             .onAppear {
                 // After the first layout, so the scroll view knows its content.
                 DispatchQueue.main.async { reader.scrollTo("traveller", anchor: UnitPoint(x: 0.5, y: 0.62)) }
@@ -52,6 +58,11 @@ struct JourneyView: View {
                 .font(.footnote.weight(.medium))
                 .opacity(0.8)
                 .multilineTextAlignment(.center)
+            Button("Why the North Star?") { showingStory = true }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Theme.star)
+                .buttonStyle(.plain)
+                .padding(.top, 2)
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 20)
@@ -164,9 +175,14 @@ enum JourneyColours {
     static let trail = Color.white.opacity(0.7)
 }
 
-private struct JourneyMap: View {
+/// The whole journey drawn at a given size (also used, smaller, in the story).
+struct JourneyMap: View {
     let kilometres: Double
     let size: CGSize
+    /// Short labels only (names and distances), for small sizes.
+    var compact = false
+    /// The traveller walks (in the story) or stands (on the Journey tab).
+    var walking = false
 
     var body: some View {
         let progress = JourneyStage.trailPosition(atKm: kilometres)
@@ -212,11 +228,11 @@ private struct JourneyMap: View {
             ForEach(JourneyStage.all) { stage in
                 let point = JourneyTrail.points[stage.point]
                 StageMarker(stage: stage, reached: kilometres >= stage.kilometres,
-                            onLeft: point.x > 0.5)
+                            onLeft: point.x > 0.5, compact: compact)
                     .position(x: point.x * size.width, y: point.y * size.height)
             }
 
-            Traveller()
+            Traveller(walking: walking)
                 .position(travellerPoint(progress))
         }
         .frame(width: size.width, height: size.height)
@@ -236,21 +252,28 @@ private struct StageMarker: View {
     let reached: Bool
     /// Put the text on the left of the dot (when the dot is on the right half).
     let onLeft: Bool
+    var compact = false
 
     var body: some View {
         let dot = Circle()
             .fill(reached ? Theme.star : .white)
             .frame(width: 12, height: 12)
             .overlay(Circle().stroke(.black.opacity(0.25), lineWidth: 1))
+        let name = stage.name.prefix(1).uppercased() + stage.name.dropFirst()
         let text = VStack(alignment: onLeft ? .trailing : .leading, spacing: 2) {
-            Text(stage.label(isReached: reached))
-                .font(.caption.weight(.semibold))
-                .opacity(0.8)
-            Text(stage.name.prefix(1).uppercased() + stage.name.dropFirst())
-                .font(.headline.weight(.regular))
-            Text(stage.line)
-                .font(.caption)
-                .opacity(0.8)
+            if compact {
+                // One short line, for small sizes.
+                Text(name).font(.caption.weight(.semibold))
+            } else {
+                Text(stage.label(isReached: reached))
+                    .font(.caption.weight(.semibold))
+                    .opacity(0.8)
+                Text(name)
+                    .font(.headline.weight(.regular))
+                Text(stage.line)
+                    .font(.caption)
+                    .opacity(0.8)
+            }
         }
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
@@ -265,14 +288,14 @@ private struct StageMarker: View {
     }
 }
 
-/// You: a small figure walking up the trail, with a soft glow so you can find yourself.
+/// You: the tiny traveller on the trail, with a soft glow so you can find yourself.
 private struct Traveller: View {
+    var walking = false
+
     var body: some View {
         ZStack {
-            Circle().fill(Theme.star.opacity(0.35)).frame(width: 34, height: 34).blur(radius: 6)
-            Image(systemName: "figure.walk")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
+            Circle().fill(Theme.star.opacity(0.35)).frame(width: 40, height: 40).blur(radius: 7)
+            TinyTraveller(walking: walking, height: 30)
                 .shadow(color: .black.opacity(0.4), radius: 3)
         }
         .accessibilityLabel("You are here")
