@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The app's root view. Version 1 has one screen: the sky.
+/// The app's root view: the skies of your places, one per page.
 struct ContentView: View {
     var body: some View {
         #if DEBUG
@@ -8,10 +8,10 @@ struct ContentView: View {
             SkyDesignPreview(pm25: UserDefaults.standard.double(forKey: "previewPM25"),
                              hourOfDay: UserDefaults.standard.double(forKey: "previewHour"))
         } else {
-            SkyScreen()
+            SkyPager()
         }
         #else
-        SkyScreen()
+        SkyPager()
         #endif
     }
 }
