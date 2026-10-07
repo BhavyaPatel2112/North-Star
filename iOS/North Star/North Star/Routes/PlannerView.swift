@@ -13,9 +13,12 @@ struct PlannerView: View {
     @State private var startCamera: MapCameraPosition = .automatic
 
     let location: LocationProvider
+    /// False when the planner is a tab (nothing to close).
+    let showsClose: Bool
 
-    init(start: Place, location: LocationProvider) {
+    init(start: Place, location: LocationProvider, showsClose: Bool = true) {
         self.location = location
+        self.showsClose = showsClose
         _model = State(initialValue: PlannerModel(start: start, location: location))
     }
 
@@ -114,7 +117,9 @@ struct PlannerView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                if showsClose {
+                    ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                }
             }
             .navigationDestination(isPresented: $showResults) {
                 if case .planned(let plan) = model.phase {
