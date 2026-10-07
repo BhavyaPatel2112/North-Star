@@ -18,7 +18,6 @@ from pathlib import Path
 
 import h3
 import numpy as np
-import osmnx as ox
 
 from northstar import config
 
@@ -118,6 +117,8 @@ def _road_class(highway) -> int:
 
 def build(polygon) -> StreetNetwork:
     """Download the walkable street network inside `polygon` and pack it into arrays."""
+    import osmnx as ox  # only needed to build the file, not on the server
+
     ox.settings.cache_folder = str(config.RAW_DIR / "osm" / "cache")
     graph = ox.graph_from_polygon(polygon, network_type="walk", simplify=True, retain_all=False)
 

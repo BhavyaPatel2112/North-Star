@@ -1,0 +1,11 @@
+# Libraries the route server needs on Render (a small subset of requirements.txt,
+# so the cloud server installs fast and stays within the free plan's memory).
+numpy==2.5.3
+scipy==1.18.1             # shortest paths and nearest-junction search
+h3==4.5.0                 # hexagon of each street
+psycopg[binary]==3.3.6    # reads the forecast from Supabase
+requests==2.34.2          # Google walking directions check
+python-dotenv==1.2.4
+fastapi==0.142.2
+pydantic==2.13.5
+uvicorn[standard]==0.54.0

@@ -23,6 +23,7 @@ h3==4.5.0                 # hexagon grid over Mumbai
 
 # Model
 scikit-learn==1.9.1       # evaluation and helpers
+scipy==1.18.1             # route finding (shortest paths)
 lightgbm==4.7.0           # main pollution model
 
 # Server
