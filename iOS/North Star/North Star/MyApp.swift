@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// North Star: air quality for Mumbai, shown as the sky.
@@ -6,5 +7,7 @@ import SwiftUI
         WindowGroup {
             ContentView()
         }
+        // Saved places live in an on-device SwiftData store.
+        .modelContainer(for: SavedPlace.self)
     }
 }

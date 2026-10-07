@@ -1,13 +1,29 @@
 import CoreLocation
 import SwiftUI
 
-/// The main screen: the sky for one place, one big word, one tip.
-/// Drag sideways anywhere to move through the next 36 hours.
+/// One page: the sky for one place, one big word, one tip.
+/// Drag sideways anywhere to move through the next 36 hours; the pager
+/// around it moves between places when you swipe up or down.
 struct SkyScreen: View {
-    @State private var model = SkyModel()
-    @State private var location = LocationProvider()
+    let location: LocationProvider
+    /// Safe-area space at the top and bottom of the screen (the pager draws edge to edge).
+    let insets: EdgeInsets
+    /// True while the user drags through time, so the pager pauses vertical scrolling.
+    @Binding var scrubbing: Bool
+    let onShowPlaces: () -> Void
+
+    @State private var model: SkyModel
     @State private var dragStart: Double?
     @Environment(\.scenePhase) private var scenePhase
+
+    init(place: Place, location: LocationProvider, insets: EdgeInsets, scrubbing: Binding<Bool>,
+         hoursAhead: Int = 0, onShowPlaces: @escaping () -> Void) {
+        self.location = location
+        self.insets = insets
+        self._scrubbing = scrubbing
+        self.onShowPlaces = onShowPlaces
+        self._model = State(initialValue: SkyModel(place: place, hoursAhead: hoursAhead))
+    }
 
     /// Points of horizontal drag per hour.
     private let pointsPerHour: CGFloat = 14
@@ -26,18 +42,17 @@ struct SkyScreen: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)  // keep everything left-aligned in every state
             .padding(.horizontal, 26)
-            .padding(.top, 8)
-            .padding(.bottom, 18)
+            .padding(.top, insets.top + 8)
+            .padding(.bottom, insets.bottom + 18)
             .foregroundStyle(ink)
             .tint(ink)
             .shadow(color: .black.opacity(ink == .white ? 0.15 : 0), radius: 10, y: 1)
             .animation(.easeInOut(duration: 0.4), value: ink == .white)
         }
         .contentShape(Rectangle())
-        .gesture(scrub)
+        .simultaneousGesture(scrub)
         .sensoryFeedback(.selection, trigger: model.reading?.band)
         .task { refresh() }
-        .onChange(of: model.place) { refresh() }
         .onChange(of: location.state) { handleLocation() }
         .onChange(of: scenePhase) { if scenePhase == .active, model.needsRefresh { refresh(keepPosition: true) } }
     }
@@ -50,14 +65,7 @@ struct SkyScreen: View {
     // MARK: - Pieces
 
     private var placeMenu: some View {
-        Menu {
-            Picker("Place", selection: $model.place) {
-                ForEach(model.places) { place in
-                    Label(place.name, systemImage: place == .current ? "location.fill" : "mappin")
-                        .tag(place)
-                }
-            }
-        } label: {
+        Button(action: onShowPlaces) {
             HStack(spacing: 6) {
                 Image(systemName: model.place == .current ? "location.fill" : "mappin.and.ellipse")
                     .font(.footnote)
@@ -65,7 +73,8 @@ struct SkyScreen: View {
                 Image(systemName: "chevron.down").font(.caption.weight(.semibold))
             }
         }
-        .accessibilityLabel("Place: \(model.place.name)")
+        .buttonStyle(.plain)
+        .accessibilityLabel("Place: \(model.place.name). Opens your places.")
     }
 
     @ViewBuilder
@@ -74,9 +83,9 @@ struct SkyScreen: View {
         case .loading:
             message(title: "…", text: "Reading the sky")
         case .locationOff:
-            message(title: "Where to?", text: "Location is off. Pick a place above to see its sky, or allow location in Settings.")
+            message(title: "Where to?", text: "Location is off. Tap above to add a place, or allow location in Settings.")
         case .outsideCoverage:
-            message(title: "Out of range", text: "North Star covers Mumbai, Thane, Navi Mumbai and Mira-Bhayandar. Pick a place above.")
+            message(title: "Out of range", text: "North Star covers Mumbai, Thane, Navi Mumbai and Mira-Bhayandar. Tap above to choose a place there.")
         case .failed(let text):
             VStack(alignment: .leading, spacing: 14) {
                 message(title: "No sky", text: text)
@@ -184,16 +193,25 @@ struct SkyScreen: View {
 
     // MARK: - Behaviour
 
+    /// Sideways drag moves through time. A drag that starts mostly up or down is
+    /// left to the pager (to change place); once a sideways drag starts, the pager
+    /// pauses so the two never fight.
     private var scrub: some Gesture {
-        DragGesture(minimumDistance: 6)
+        DragGesture(minimumDistance: 8)
             .onChanged { value in
                 guard model.status == .ready, let count = model.forecast?.hours.count else { return }
-                if dragStart == nil { dragStart = model.position }
+                if dragStart == nil {
+                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                    dragStart = model.position
+                    scrubbing = true
+                }
                 let target = dragStart! + Double(value.translation.width / pointsPerHour)
                 model.position = min(Double(count - 1), max(0, target))
             }
             .onEnded { _ in
+                guard dragStart != nil else { return }
                 dragStart = nil
+                scrubbing = false
                 withAnimation(.easeOut(duration: 0.2)) { model.position = model.position.rounded() }
             }
     }
@@ -256,5 +274,6 @@ struct SkyScreen: View {
 }
 
 #Preview {
-    SkyScreen()
+    SkyScreen(place: Place.runningSpots[0], location: LocationProvider(), insets: EdgeInsets(),
+              scrubbing: .constant(false), onShowPlaces: {})
 }

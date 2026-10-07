@@ -14,8 +14,7 @@ final class SkyModel {
         case failed(String)
     }
 
-    let places: [Place] = [.current] + Place.runningSpots
-    var place: Place = .current
+    let place: Place
     private(set) var forecast: Forecast?
     private(set) var status: Status = .loading
     /// The hour being shown, as a position in the forecast (fractional while dragging).
@@ -24,18 +23,12 @@ final class SkyModel {
     private let service = ForecastService()
     private var lastLoaded: Date?
 
-    /// Test-only launch options (debug builds only), for screenshots without touching the screen:
-    /// "-place juhu" opens a running spot, "-hoursAhead 8" opens 8 hours ahead.
-    private var launchHoursAhead = 0
+    /// How many hours ahead to open at (used by debug screenshots; normally 0 = now).
+    private var launchHoursAhead: Int
 
-    init() {
-        #if DEBUG
-        let arguments = UserDefaults.standard
-        if let id = arguments.string(forKey: "place"), let spot = Place.runningSpots.first(where: { $0.id == id }) {
-            place = spot
-        }
-        launchHoursAhead = arguments.integer(forKey: "hoursAhead")
-        #endif
+    init(place: Place, hoursAhead: Int = 0) {
+        self.place = place
+        self.launchHoursAhead = hoursAhead
     }
 
     /// The hour index currently shown (rounded).
