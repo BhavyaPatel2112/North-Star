@@ -106,7 +106,10 @@ def google_walk(conn, shape: list) -> tuple[float, list]:
     conn.commit()
     if response.status_code != 200:
         raise RuntimeError(f"Google Routes: HTTP {response.status_code}: {response.text[:150]}")
-    route = response.json()["routes"][0]
+    routes = response.json().get("routes")
+    if not routes:
+        return float("nan"), []  # Google found no walking route through these points
+    route = routes[0]
     return float(route["distanceMeters"]), decode_polyline(route["polyline"]["encodedPolyline"])
 
 
@@ -123,14 +126,17 @@ def main() -> None:
                 for i, option in enumerate(plan(lat, lon, 5000, exposure)):
                     shape = planner.shape(option)
                     distance, google_line = google_walk(conn, shape)
+                    walkable = bool(google_line)
                     rows.append({
                         "start": name, "kind": option.kind, "option": i + 1,
                         "ours_km": round(option.distance_m / 1000, 2), "google_km": round(distance / 1000, 2),
                         "ratio": round(distance / option.distance_m, 2),
-                        "overlap": round(overlap(shape, google_line), 2),
+                        "overlap": round(overlap(shape, google_line), 2) if walkable else 0.0,
+                        "google_found_route": walkable,
                     })
     table = pd.DataFrame(rows)
-    table["flag"] = np.where((table.ratio > 1.15) | (table.overlap < 0.8), "CHECK", "ok")
+    table["flag"] = np.where(~table.google_found_route, "NO WALK ROUTE",
+                             np.where((table.ratio > 1.15) | (table.overlap < 0.8), "CHECK", "ok"))
     print(table.to_string(index=False))
     print(f"\n{(table.flag == 'ok').mean():.0%} of routes pass "
           f"(median Google/ours distance {table.ratio.median():.2f}, median overlap {table.overlap.median():.0%})")

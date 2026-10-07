@@ -113,6 +113,14 @@ class Area:
 class Planner:
     def __init__(self, network: StreetNetwork):
         self.net = network
+        # Junctions where a one-way run may finish: on a named public street or a
+        # medium-or-bigger road, not deep inside campuses, parks or mangroves
+        # (the cleanest-looking finishes, which Google's walking directions often
+        # could not reach when we checked).
+        good = (network.edge_penalty == 1.0) & ((network.edge_name >= 0) | (network.edge_class >= 1))
+        self.finish_ok = np.zeros(len(network.node_lat), dtype=bool)
+        self.finish_ok[network.edge_from[good]] = True
+        self.finish_ok[network.edge_to[good]] = True
         self.lat0 = float(np.mean(network.node_lat))
         self.kx = cos(radians(self.lat0)) * EARTH_M_PER_DEG
         self.xy = np.column_stack([network.node_lon * self.kx, network.node_lat * EARTH_M_PER_DEG])
@@ -144,7 +152,10 @@ class Planner:
         """Street cost = length x (exposure relative to the local median) ^ strength."""
         local = exposure[area.edge_ids].astype(np.float64)
         relative = local / max(float(np.median(local)), 1.0)
-        return area.length * np.power(relative, STYLES[style])
+        # Streets runners usually cannot or should not use (gated-complex lanes, dirt
+        # tracks) cost extra in every style, so even the direct route avoids them.
+        penalty = self.net.edge_penalty[area.edge_ids].astype(np.float64)
+        return area.length * penalty * np.power(relative, STYLES[style])
 
     def _describe(self, area: Area, kind: str, style: str, local_nodes: list[int], exposure: np.ndarray) -> RouteOption:
         edges = area.edge_ids[area.edges_of(local_nodes)].tolist()
@@ -233,7 +244,8 @@ class Planner:
         for style in ("cleanest", "direct"):
             costs, predecessors = area.tree(self._weights(area, exposure, style), start)
             lengths = area.lengths_along_tree(costs, predecessors, start)
-            candidates = np.where(np.abs(lengths - distance_m) <= TOLERANCE * distance_m)[0]
+            candidates = np.where((np.abs(lengths - distance_m) <= TOLERANCE * distance_m)
+                                  & self.finish_ok[area.node_ids])[0]
             if len(candidates) == 0:
                 continue
             delta = self.xy[area.node_ids[candidates]] - np.array([lon * self.kx, lat * EARTH_M_PER_DEG])

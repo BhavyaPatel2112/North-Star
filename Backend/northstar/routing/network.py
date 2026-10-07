@@ -34,6 +34,19 @@ ROAD_CLASS = {
 }
 ROAD_CLASS_NAMES = {0: "quiet street", 1: "medium road", 2: "main road", 3: "highway"}
 
+# Streets the public cannot use are left out: Google's walking directions
+# avoided them when we checked planned routes against it (October 2026).
+CLOSED_ACCESS = {"no", "private", "military", "customers", "destination", "permit", "delivery", "agricultural"}
+OPEN_FOOT = {"yes", "designated", "permissive"}
+
+# Extra route cost for streets runners usually cannot or should not use, often
+# lanes inside gated societies, office parks and campuses (unnamed service
+# roads) or unpaved tracks (National Park, salt pans, mangroves).
+UNNAMED_SERVICE_PENALTY = 3.0
+TRACK_PENALTY = 3.0
+STEPS_PENALTY = 1.5
+NAMED_SERVICE_PENALTY = 1.3
+
 
 @dataclass
 class StreetNetwork:
@@ -48,6 +61,7 @@ class StreetNetwork:
     shape_points: np.ndarray   # float32, (n, 2) latitude, longitude
     edge_name: np.ndarray      # int32 index into `names`, -1 when the street has no name
     names: np.ndarray          # unicode strings, each street name once
+    edge_penalty: np.ndarray   # float32 route-cost multiplier for streets runners should avoid
 
     def street_name(self, edge: int) -> str:
         index = int(self.edge_name[edge])
@@ -77,6 +91,26 @@ def _name(data: dict) -> str:
     return ""
 
 
+def _first(value):
+    return value[0] if isinstance(value, list) else value
+
+
+def _usable(data: dict) -> bool:
+    """False for streets closed to the public (military areas, private lanes...)."""
+    return not (str(_first(data.get("access"))) in CLOSED_ACCESS and str(_first(data.get("foot"))) not in OPEN_FOOT)
+
+
+def _penalty(data: dict, named: bool) -> float:
+    highway = str(_first(data.get("highway")))
+    if highway == "service":
+        return NAMED_SERVICE_PENALTY if named else UNNAMED_SERVICE_PENALTY
+    if highway == "track":
+        return TRACK_PENALTY
+    if highway == "steps":
+        return STEPS_PENALTY
+    return 1.0
+
+
 def _road_class(highway) -> int:
     values = highway if isinstance(highway, list) else [highway]
     return max(ROAD_CLASS.get(str(v), 0) for v in values)
@@ -97,6 +131,8 @@ def build(polygon) -> StreetNetwork:
     # if there are parallel edges between the same two junctions.
     best = {}
     for u, v, data in graph.edges(data=True):
+        if not _usable(data):
+            continue
         a, b = sorted((index[u], index[v]))
         length = float(data.get("length", 0))
         if (a, b) not in best or length < best[(a, b)][0]:
@@ -104,7 +140,7 @@ def build(polygon) -> StreetNetwork:
 
     edge_from, edge_to, lengths, classes, cells, offsets, points = [], [], [], [], [], [0], []
     name_index: dict[str, int] = {}
-    edge_names = []
+    edge_names, penalties = [], []
     for (a, b), (length, data) in best.items():
         if "geometry" in data:
             coords = [(lat, lon) for lon, lat in data["geometry"].coords]
@@ -122,6 +158,7 @@ def build(polygon) -> StreetNetwork:
         cells.append(h3.str_to_int(h3.latlng_to_cell(middle[0], middle[1], 9)))
         name = _name(data)
         edge_names.append(name_index.setdefault(name, len(name_index)) if name else -1)
+        penalties.append(_penalty(data, named=bool(name)))
         points.extend(coords)
         offsets.append(len(points))
 
@@ -132,4 +169,5 @@ def build(polygon) -> StreetNetwork:
         edge_cell=np.array(cells, dtype=np.int64),
         shape_offsets=np.array(offsets, dtype=np.int64), shape_points=np.array(points, dtype=np.float32),
         edge_name=np.array(edge_names, dtype=np.int32), names=np.array(list(name_index), dtype=np.str_),
+        edge_penalty=np.array(penalties, dtype=np.float32),
     )
