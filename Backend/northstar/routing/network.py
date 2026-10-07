@@ -6,8 +6,8 @@ stored as plain arrays:
 
 - nodes: latitude and longitude of every junction
 - edges: from-node, to-node, length in metres, road class, the H3 hexagon of
-  the edge's midpoint (to look up its pollution forecast) and its shape (for
-  drawing the route)
+  the edge's midpoint (to look up its pollution forecast), its street name
+  (when OpenStreetMap has one) and its shape (for drawing the route)
 
 Arrays load in about a second and use far less memory than a general graph
 library's objects, which matters on a small cloud server.
@@ -46,6 +46,12 @@ class StreetNetwork:
     edge_cell: np.ndarray     # int64, H3 cell (resolution 9) of the midpoint
     shape_offsets: np.ndarray  # int64, edge i's points are shape_points[offsets[i]:offsets[i+1]]
     shape_points: np.ndarray   # float32, (n, 2) latitude, longitude
+    edge_name: np.ndarray      # int32 index into `names`, -1 when the street has no name
+    names: np.ndarray          # unicode strings, each street name once
+
+    def street_name(self, edge: int) -> str:
+        index = int(self.edge_name[edge])
+        return str(self.names[index]) if index >= 0 else ""
 
     def edge_shape(self, edge: int) -> np.ndarray:
         return self.shape_points[self.shape_offsets[edge]:self.shape_offsets[edge + 1]]
@@ -58,6 +64,17 @@ class StreetNetwork:
     def load(cls, path: Path = NETWORK_FILE) -> "StreetNetwork":
         with np.load(path) as data:
             return cls(**{name: data[name] for name in data.files})
+
+
+def _name(data: dict) -> str:
+    """The street's name, or its road number (like NH48) when it has no name."""
+    for key in ("name", "ref"):
+        value = data.get(key)
+        if isinstance(value, list):
+            value = " / ".join(dict.fromkeys(str(v) for v in value))
+        if value:
+            return str(value)
+    return ""
 
 
 def _road_class(highway) -> int:
@@ -86,6 +103,8 @@ def build(polygon) -> StreetNetwork:
             best[(a, b)] = (length, data)
 
     edge_from, edge_to, lengths, classes, cells, offsets, points = [], [], [], [], [], [0], []
+    name_index: dict[str, int] = {}
+    edge_names = []
     for (a, b), (length, data) in best.items():
         if "geometry" in data:
             coords = [(lat, lon) for lon, lat in data["geometry"].coords]
@@ -101,6 +120,8 @@ def build(polygon) -> StreetNetwork:
         lengths.append(length)
         classes.append(_road_class(data.get("highway")))
         cells.append(h3.str_to_int(h3.latlng_to_cell(middle[0], middle[1], 9)))
+        name = _name(data)
+        edge_names.append(name_index.setdefault(name, len(name_index)) if name else -1)
         points.extend(coords)
         offsets.append(len(points))
 
@@ -110,4 +131,5 @@ def build(polygon) -> StreetNetwork:
         edge_length=np.array(lengths, dtype=np.float32), edge_class=np.array(classes, dtype=np.int8),
         edge_cell=np.array(cells, dtype=np.int64),
         shape_offsets=np.array(offsets, dtype=np.int64), shape_points=np.array(points, dtype=np.float32),
+        edge_name=np.array(edge_names, dtype=np.int32), names=np.array(list(name_index), dtype=np.str_),
     )

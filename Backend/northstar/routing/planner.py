@@ -330,6 +330,49 @@ class Planner:
         return points
 
 
+def steps(planner: Planner, option: RouteOption, exposure: np.ndarray) -> list[dict]:
+    """The route as named stretches, merging consecutive segments of the same street:
+    [{name, km_from, km, pm25, road}], in running order."""
+    result: list[dict] = []
+    done = 0.0
+    for edge in option.edges:
+        name = planner.net.street_name(edge) or "unnamed lane"
+        length = float(planner.net.edge_length[edge]) / 1000
+        road = ROAD_CLASS_NAMES[int(planner.net.edge_class[edge])]
+        if result and result[-1]["name"] == name:
+            last = result[-1]
+            last["pm25"] = (last["pm25"] * last["km"] + float(exposure[edge]) * length) / (last["km"] + length)
+            last["km"] += length
+        else:
+            result.append({"name": name, "km_from": done, "km": length, "pm25": float(exposure[edge]), "road": road})
+        done += length
+    return _merge_short(result)
+
+
+def _merge_short(stretches: list[dict], shortest_km: float = 0.03) -> list[dict]:
+    """Fold stretches under 30 m (crossings, slip lanes) into the previous one, then
+    join neighbours that now share a name, so the list reads like real directions."""
+    merged: list[dict] = []
+    for stretch in stretches:
+        if merged and (stretch["km"] < shortest_km or stretch["name"] == merged[-1]["name"]):
+            last = merged[-1]
+            last["pm25"] = (last["pm25"] * last["km"] + stretch["pm25"] * stretch["km"]) / (last["km"] + stretch["km"])
+            last["km"] += stretch["km"]
+        else:
+            merged.append(dict(stretch))
+    return merged
+
+
+def google_maps_link(planner: Planner, option: RouteOption, waypoints: int = 8) -> str:
+    """A Google Maps link that shows the route as a walking route through evenly spaced
+    points, for checking it with street names and Street View (no key needed)."""
+    shape = planner.shape(option)
+    picks = [shape[round(i * (len(shape) - 1) / (waypoints + 1))] for i in range(1, waypoints + 1)]
+    fmt = lambda p: f"{p[0]:.6f},{p[1]:.6f}"
+    return ("https://www.google.com/maps/dir/?api=1&travelmode=walking"
+            f"&origin={fmt(shape[0])}&destination={fmt(shape[-1])}&waypoints={'%7C'.join(fmt(p) for p in picks)}")
+
+
 def road_mix(planner: Planner, option: RouteOption) -> dict[str, float]:
     """Kilometres of each road type on the route, for the app's summary."""
     lengths = planner.net.edge_length[option.edges]
