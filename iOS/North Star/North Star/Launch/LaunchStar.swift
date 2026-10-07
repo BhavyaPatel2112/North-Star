@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The opening animation: a star blooms out of the dark, its light travels
-/// around it while it twinkles and faint stars appear around it, it flares once,
-/// then the picture fades into the sky. Drawn by SkyStar.metal.
+/// The opening animation (10 seconds): a star blooms out of the dark, its light
+/// travels around it while it twinkles, faint stars appear and the glow slowly
+/// builds, it flares once, then the picture fades into the sky. Drawn by SkyStar.metal.
 ///
 /// Inspired by Brett McMillin's "Spectral signal through the pane of glass"
 /// (Figma Community), as a star in the night sky instead of a ring.
@@ -15,10 +15,14 @@ struct LaunchStar: View {
     @State private var start: Date?
     @State private var finished = false
 
-    /// Timings in seconds: bloom, then the light travels, a flare, and the fade into the sky.
-    private var total: Double { reduceMotion ? 2.0 : 4.3 }
-    private let flareAt = 3.3
-    private let fadeOut = 0.7
+    /// Timings in seconds:
+    /// 0 to 2      the star blooms from a point (background stars fade in from 0.8 to 3)
+    /// 2 to 8      its light travels around it two and a half times; the glow slowly builds
+    /// 8.2         the flare
+    /// 8.8 to 10   the fade into the sky
+    private var total: Double { reduceMotion ? 2.0 : 10.0 }
+    private let flareAt = 8.2
+    private var fadeOut: Double { reduceMotion ? 0.7 : 1.2 }
 
     var body: some View {
         GeometryReader { geometry in
@@ -69,20 +73,24 @@ struct LaunchStar: View {
     // MARK: - Timing curves
 
     /// The star growing out of a point (0 to 1).
-    private func bloom(_ t: Double) -> Double { smooth(t / 0.9) }
+    private func bloom(_ t: Double) -> Double { smooth(t / (reduceMotion ? 0.9 : 2.0)) }
 
     /// Background stars fading in (0 to 1).
-    private func sky(_ t: Double) -> Double { smooth((t - 0.3) / 1.2) }
+    private func sky(_ t: Double) -> Double { reduceMotion ? smooth((t - 0.3) / 1.2) : smooth((t - 0.8) / 2.2) }
 
-    /// Direction of the travelling light: one and a quarter turns, easing in and out.
+    /// Direction of the travelling light: two and a half turns, easing in and out.
     private func orbit(_ t: Double) -> Double {
         if reduceMotion { return -.pi / 3 }
-        return -.pi / 2 + smooth(t / (total - 0.4)) * 2.5 * .pi
+        return -.pi / 2 + smooth(t / (total - 0.6)) * 5 * .pi
     }
 
-    /// The final sparkle: a quick bright pulse around flareAt (0 to 1).
+    /// Extra glow and longer rays: a slow build from 2 s up to the flare, then the
+    /// flare itself, a quick bright pulse at flareAt (0 to 1).
     private func flare(_ t: Double) -> Double {
-        reduceMotion ? 0 : exp(-pow((t - flareAt) / 0.2, 2))
+        if reduceMotion { return 0 }
+        let build = 0.22 * smooth((t - 2) / (flareAt - 2.2)) * (1 - smooth((t - flareAt) / 0.4))
+        let peak = exp(-pow((t - flareAt) / 0.25, 2))
+        return max(build, peak)
     }
 
     /// The whole picture fading out into the sky (0 to 1).
