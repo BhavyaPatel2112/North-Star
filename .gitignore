@@ -39,7 +39,11 @@ env/
 !.env.example
 
 # ---------- Data and models (too big for Git) ----------
-Backend/data/
+Backend/data/*
+!Backend/data/processed/
+Backend/data/processed/*
+# ...except the compact street network the route planner needs (about 3 MB).
+!Backend/data/processed/street_network.npz
 *.parquet
 *.csv.gz
 *.pkl
