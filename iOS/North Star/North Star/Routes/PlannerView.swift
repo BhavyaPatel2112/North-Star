@@ -13,109 +13,55 @@ struct PlannerView: View {
     @State private var startCamera: MapCameraPosition = .automatic
 
     let location: LocationProvider
+    /// False when the planner is a tab (nothing to close).
+    let showsClose: Bool
 
-    init(start: Place, location: LocationProvider) {
+    init(start: Place, location: LocationProvider, showsClose: Bool = true) {
         self.location = location
+        self.showsClose = showsClose
         _model = State(initialValue: PlannerModel(start: start, location: location))
     }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    NavigationLink {
-                        PlacePicker(title: "Start", location: location, allowsCurrent: true) { model.start = $0 }
-                    } label: {
-                        Label {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(model.start.name)
-                                if let address = model.startAddress {
-                                    Text(address).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        } icon: {
-                            Image(systemName: model.start == .current ? "location.fill" : "mappin.and.ellipse")
-                        }
-                    }
-                    startMap
-                    locationStatus
-                    popularStarts
-                } header: {
-                    Text("Start")
-                } footer: {
-                    Text("Tap the map to move the start exactly where you want it.")
-                }
+            ScrollView {
+                VStack(spacing: 14) {
+                    JourneyHeader(title: "Plan a run.", subtitle: "Today's stretch.", trailing: closeButton)
+                        .padding(.bottom, 4)
 
-                Section {
-                    distancePicker
-                } header: {
-                    Text("Distance")
-                } footer: {
-                    if let note = model.note { Text(note) }
-                }
+                    startCard
+                    distanceCard
+                    runCard
+                    roadsCard
+                    timeCard
 
-                Section {
-                    Picker("Run", selection: $model.kind) {
-                        Text("Loop").tag(RouteService.Kind.loop)
-                        Text("One way").tag(RouteService.Kind.oneWay)
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                } footer: {
-                    Text(model.kind == .loop
-                         ? "Start and finish at the same place. If no good loop exists, you get an out-and-back."
-                         : "End somewhere else. Leave the finish empty and North Star picks a clean place to end.")
-                }
-
-                if model.kind == .oneWay {
-                    Section { oneWayOptions }
-                }
-
-                Section {
-                    Toggle("OK with highways and busy roads", isOn: $model.allowBusyRoads)
-                } footer: {
-                    Text(model.allowBusyRoads
-                         ? "Routes may cross highways and follow main roads with heavy traffic."
-                         : "Routes never cross a highway (at a signal, under a flyover or over a bridge) and stay off roads that are mostly main road.")
-                }
-
-                Section("Start time") {
-                    Toggle("Start now", isOn: Binding(
-                        get: { model.startTime == nil },
-                        set: { model.startTime = $0 ? nil : Self.nextHour }))
-                    if let time = model.startTime {
-                        DatePicker("Starting at", selection: Binding(get: { time }, set: { model.startTime = $0 }),
-                                   in: Date.now...Date.now.addingTimeInterval(30 * 3600),
-                                   displayedComponents: [.date, .hourAndMinute])
-                    }
-                }
-
-                Section {
                     Button {
                         Task {
                             await model.planRoutes()
                             if case .planned = model.phase { showResults = true }
                         }
                     } label: {
-                        HStack {
-                            Text("Find clean routes").font(.headline)
-                            Spacer()
-                            if model.isPlanning { ProgressView() }
+                        HStack(spacing: 10) {
+                            if model.isPlanning { ProgressView().tint(Theme.mist) }
+                            Text(model.isPlanning ? "Finding routes…" : "Find clean routes")
                         }
                     }
+                    .buttonStyle(PillButtonStyle())
                     .disabled(model.isPlanning)
-                } footer: {
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+
                     status
+                        .padding(.horizontal, 28)
+                        .padding(.bottom, 24)
                 }
             }
-            .navigationTitle("Plan a run")
+            .scrollIndicators(.hidden)
+            .ignoresSafeArea(edges: .top)
+            .background(Theme.mist)
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-            }
             .navigationDestination(isPresented: $showResults) {
                 if case .planned(let plan) = model.phase {
                     RouteResultsView(plan: plan, model: model)
@@ -130,46 +76,148 @@ struct PlannerView: View {
         }
     }
 
-    // MARK: - Pieces
+    /// Close button in the header, only when the planner is shown as a sheet.
+    private var closeButton: AnyView? {
+        guard showsClose else { return nil }
+        return AnyView(Button { dismiss() } label: {
+            Image(systemName: "xmark").font(.headline).foregroundStyle(.white)
+                .frame(width: 40, height: 40).northGlass(in: Circle())
+        }.buttonStyle(.plain))
+    }
 
-    private var distancePicker: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    // MARK: - Cards
+
+    private var startCard: some View {
+        JourneyCard(title: "Start") {
+            NavigationLink {
+                PlacePicker(title: "Start", location: location, allowsCurrent: true) { model.start = $0 }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: model.start == .current ? "location.fill" : "mappin.and.ellipse")
+                        .font(.headline)
+                        .frame(width: 36, height: 36)
+                        .background(Theme.ink.opacity(0.07), in: Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.start.name).font(.headline.weight(.medium))
+                        if let address = model.startAddress {
+                            Text(address).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                }
+                .foregroundStyle(Theme.ink)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            startMap
+            locationStatus
+            popularStarts
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var distanceCard: some View {
+        JourneyCard(title: "Distance") {
             HStack(alignment: .center) {
                 Text(PlannerModel.format(km: model.distanceKm))
-                    .font(.system(size: 40, weight: .bold).monospacedDigit())
+                    .font(.system(size: 46, weight: .light).monospacedDigit())
                     .contentTransition(.numericText(value: model.distanceKm))
                 Spacer()
-                Stepper("Distance", value: $model.distanceKm, in: PlannerModel.distanceRange, step: 0.5)
-                    .labelsHidden()
+                RoundIconButton(systemImage: "minus") { step(by: -0.5) }
+                RoundIconButton(systemImage: "plus") { step(by: 0.5) }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Distance \(PlannerModel.format(km: model.distanceKm))")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: step(by: 0.5)
+                case .decrement: step(by: -0.5)
+                @unknown default: break
+                }
             }
             HStack(spacing: 8) {
                 ForEach(PlannerModel.quickDistances, id: \.self) { km in
-                    Button(km == 21.1 ? "Half" : PlannerModel.format(km: km)) {
+                    Chip(title: km == 21.1 ? "Half" : PlannerModel.format(km: km), selected: model.distanceKm == km) {
                         withAnimation(.snappy) { model.distanceKm = km }
                     }
-                    .buttonStyle(.bordered)
-                    .tint(model.distanceKm == km ? .accentColor : .secondary)
                 }
             }
+            if let note = model.note { CardNote(text: note) }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 16)
     }
+
+    private func step(by km: Double) {
+        withAnimation(.snappy) {
+            model.distanceKm = min(PlannerModel.distanceRange.upperBound,
+                                   max(PlannerModel.distanceRange.lowerBound, model.distanceKm + km))
+        }
+    }
+
+    private var runCard: some View {
+        JourneyCard(title: "Run") {
+            PillSwitch(selection: $model.kind, options: [(.loop, "Loop"), (.oneWay, "One way")])
+            CardNote(text: model.kind == .loop
+                     ? "Start and finish at the same place. If no good loop exists, you get an out-and-back."
+                     : "End somewhere else. Leave the finish empty and North Star picks a clean place to end.")
+            if model.kind == .oneWay { oneWayOptions }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var roadsCard: some View {
+        JourneyCard {
+            Toggle("OK with highways and busy roads", isOn: $model.allowBusyRoads)
+                .font(.body.weight(.medium))
+                .tint(Theme.ink)
+            CardNote(text: model.allowBusyRoads
+                     ? "Routes may cross highways and follow main roads with heavy traffic."
+                     : "Routes never cross a highway (at a signal, under a flyover or over a bridge) and stay off roads that are mostly main road.")
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var timeCard: some View {
+        JourneyCard {
+            Toggle("Start now", isOn: Binding(
+                get: { model.startTime == nil },
+                set: { model.startTime = $0 ? nil : Self.nextHour }))
+                .font(.body.weight(.medium))
+                .tint(Theme.ink)
+            if let time = model.startTime {
+                DatePicker("Starting at", selection: Binding(get: { time }, set: { model.startTime = $0 }),
+                           in: Date.now...Date.now.addingTimeInterval(30 * 3600),
+                           displayedComponents: [.date, .hourAndMinute])
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - Pieces
 
     /// A small map of the start. Tapping it pins the start to that exact point.
     private var startMap: some View {
         MapReader { proxy in
             Map(position: $startCamera, interactionModes: [.pan, .zoom]) {
                 if let c = model.startCoordinate {
-                    Marker("Start", systemImage: "figure.run", coordinate: c).tint(.black)
+                    Marker("Start", systemImage: "figure.walk", coordinate: c).tint(Theme.ink)
                 }
             }
-            .mapStyle(.standard(pointsOfInterest: .excludingAll))
+            .mapStyle(.standard(emphasis: .muted, pointsOfInterest: .excludingAll))
             .onTapGesture { point in
                 if let c = proxy.convert(point, from: .local) { model.pinStart(at: c) }
             }
         }
-        .frame(height: 170)
-        .listRowInsets(EdgeInsets())
+        .frame(height: 160)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(alignment: .bottomLeading) {
+            Text("Tap the map to set the exact start")
+                .font(.caption2.weight(.medium))
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(.thinMaterial, in: Capsule())
+                .padding(8)
+        }
         .onChange(of: model.startCoordinate?.latitude, initial: true) { recentre() }
         .onChange(of: model.startCoordinate?.longitude) { recentre() }
     }
@@ -218,47 +266,57 @@ struct PlannerView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 if model.start != .current {
-                    chip("Current location", systemImage: "location.fill") { model.start = .current; model.refreshLocation() }
+                    Chip(title: "Current location", systemImage: "location.fill") { model.start = .current; model.refreshLocation() }
                 }
                 ForEach(Place.runningSpots) { spot in
-                    chip(spot.name, selected: model.start == spot) { model.start = spot }
+                    Chip(title: spot.name, selected: model.start == spot) { model.start = spot }
                 }
             }
             .padding(.vertical, 2)
         }
     }
 
-    private func chip(_ title: String, systemImage: String? = nil, selected: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            if let systemImage { Label(title, systemImage: systemImage) } else { Text(title) }
-        }
-        .buttonStyle(.bordered)
-        .tint(selected ? .accentColor : .secondary)
-        .font(.subheadline)
-    }
-
     @ViewBuilder
     private var oneWayOptions: some View {
+        Divider()
         NavigationLink {
             PlacePicker(title: "Finish", location: location, allowsCurrent: false) { model.finish = $0 }
         } label: {
-            LabeledContent("Finish", value: model.finish?.name ?? "North Star chooses")
+            HStack {
+                Text("Finish").font(.body.weight(.medium))
+                Spacer()
+                Text(model.finish?.name ?? "North Star chooses").foregroundStyle(.secondary).lineLimit(1)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .foregroundStyle(Theme.ink)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         if model.finish != nil {
-            Button("Let North Star choose the finish", role: .destructive) { model.finish = nil }
+            Button("Let North Star choose the finish") { model.finish = nil }
+                .font(.subheadline.weight(.medium))
         } else {
             Toggle(isOn: $model.endNearFood) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("End near food")
+                    Text("End near food").font(.body.weight(.medium))
                     Text("Finish at a popular, well-rated restaurant or cafe")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
             }
+            .tint(Theme.ink)
         }
     }
 
-    @ViewBuilder
     private var status: some View {
+        statusText
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var statusText: some View {
         switch model.phase {
         case .planning(let wakingUp):
             Text(wakingUp
@@ -346,6 +404,8 @@ struct PlacePicker: View {
             }
         }
         .foregroundStyle(.primary)
+        .scrollContentBackground(.hidden)
+        .background(Theme.mist)
         .searchable(text: $search.query, prompt: "Search Mumbai")
         .navigationTitle(title)
         .overlay { if lookingUp { ProgressView() } }

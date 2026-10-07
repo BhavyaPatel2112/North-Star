@@ -1,9 +1,11 @@
 import CoreLocation
 import SwiftUI
 
-/// One page: the sky for one place, one big word, one tip.
-/// Drag sideways anywhere to move through the next 36 hours; the pager
-/// around it moves between places when you swipe up or down.
+/// One page of the Today tab: the journey landscape for one place (its mist and
+/// light follow the air and the hour), the air in a few words, two glass cards,
+/// and below, the timeline and advice.
+/// Drag sideways anywhere to move through the next 36 hours; the pager around
+/// it moves between places when you swipe up or down.
 struct SkyScreen: View {
     let location: LocationProvider
     /// Safe-area space at the top and bottom of the screen (the pager draws edge to edge).
@@ -12,18 +14,21 @@ struct SkyScreen: View {
     @Binding var scrubbing: Bool
     let onShowPlaces: () -> Void
     let onPlanRun: (Place) -> Void
+    let onShowJourney: () -> Void
 
     @State private var model: SkyModel
     @State private var dragStart: Double?
     @Environment(\.scenePhase) private var scenePhase
 
     init(place: Place, location: LocationProvider, insets: EdgeInsets, scrubbing: Binding<Bool>,
-         hoursAhead: Int = 0, onShowPlaces: @escaping () -> Void, onPlanRun: @escaping (Place) -> Void) {
+         hoursAhead: Int = 0, onShowPlaces: @escaping () -> Void, onPlanRun: @escaping (Place) -> Void,
+         onShowJourney: @escaping () -> Void) {
         self.location = location
         self.insets = insets
         self._scrubbing = scrubbing
         self.onShowPlaces = onShowPlaces
         self.onPlanRun = onPlanRun
+        self.onShowJourney = onShowJourney
         self._model = State(initialValue: SkyModel(place: place, hoursAhead: hoursAhead))
     }
 
@@ -31,32 +36,15 @@ struct SkyScreen: View {
     private let pointsPerHour: CGFloat = 14
 
     var body: some View {
-        // Worked out once per frame and shared by everything on the page.
-        let ink = SkyPalette(pm25: model.smoothPM25, hourOfDay: model.smoothHourOfDay).ink
-        ZStack {
-            ForecastSky(position: model.position, track: model.track)
-                .ignoresSafeArea()
-
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    placeMenu
-                    Spacer()
-                    planButton
-                }
-                .legible(ink)
-                Spacer(minLength: 24)
-                centre(ink: ink).legible(ink)
-                Spacer(minLength: 24)
-                if model.status == .ready { timeline(ink: ink) }
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                hero
+                    .frame(height: max(440, geometry.size.height * 0.63))
+                lower
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)  // keep everything left-aligned in every state
-            .padding(.horizontal, 26)
-            .padding(.top, insets.top + 8)
-            .padding(.bottom, insets.bottom + 18)
-            .foregroundStyle(ink)
-            .tint(ink)
-            .animation(.easeInOut(duration: 0.4), value: ink == .white)
         }
+        .background(Theme.mist)
         .contentShape(Rectangle())
         .simultaneousGesture(scrub)
         .sensoryFeedback(.selection, trigger: model.reading?.band)
@@ -65,145 +53,213 @@ struct SkyScreen: View {
         .onChange(of: scenePhase) { if scenePhase == .active, model.needsRefresh { refresh(keepPosition: true) } }
     }
 
-    // MARK: - Pieces
+    // MARK: - The landscape and what sits on it
 
-    private var placeMenu: some View {
+    private var hero: some View {
+        ZStack {
+            ForecastLandscape(position: model.position, track: model.track)
+            // A gentle shade low down, so the white words and cards stay readable on pale snow.
+            LinearGradient(colors: [.clear, .black.opacity(0.3)],
+                           startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
+                .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                HStack {
+                    placeButton
+                    Spacer()
+                }
+                .padding(.top, insets.top + 6)
+                Spacer(minLength: 12)
+                headline
+                Spacer().frame(height: 26)
+                cards
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+        }
+        .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 36, bottomTrailingRadius: 36, style: .continuous))
+        .ignoresSafeArea(edges: .top)
+    }
+
+    private var placeButton: some View {
         Button(action: onShowPlaces) {
             HStack(spacing: 6) {
                 Image(systemName: model.place == .current ? "location.fill" : "mappin.and.ellipse")
                     .font(.footnote)
-                Text(model.place.name).font(.body.weight(.medium))
-                Image(systemName: "chevron.down").font(.caption.weight(.semibold))
+                Text(model.place.name).font(.subheadline.weight(.medium))
+                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
             }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .northGlass(in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Place: \(model.place.name). Opens your places.")
     }
 
-    private var planButton: some View {
-        Button { onPlanRun(model.place) } label: {
-            Label("Plan a run", systemImage: "figure.run")
-                .font(.body.weight(.medium))
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Find a cleaner route from this place.")
-    }
-
+    /// The air in a few words, Ro-style: one line, then a fainter second line.
     @ViewBuilder
-    private func centre(ink: Color) -> some View {
-        switch model.status {
-        case .loading:
-            message(title: "…", text: "Reading the sky")
-        case .locationOff:
-            message(title: "Where to?", text: "Location is off. Tap above to add a place, or allow location in Settings.")
-        case .outsideCoverage:
-            message(title: "Out of range", text: "North Star covers Mumbai, Thane, Navi Mumbai and Mira-Bhayandar. Tap above to choose a place there.")
-        case .failed(let text):
-            VStack(alignment: .leading, spacing: 14) {
-                message(title: "No sky", text: text)
-                Button("Try again") { refresh() }
-                    .buttonStyle(.bordered)
+    private var headline: some View {
+        VStack(spacing: 10) {
+            switch model.status {
+            case .loading:
+                bigWords("Reading", "the sky…")
+            case .locationOff:
+                bigWords("Where to?", "Choose a place.")
+            case .outsideCoverage:
+                bigWords("Out of range.", "Choose a Mumbai place.")
+            case .failed(let text):
+                bigWords("No reading.", "Try again.")
+                Text(text).font(.footnote).foregroundStyle(.white.opacity(0.85)).multilineTextAlignment(.center)
+            case .ready:
+                if let reading = model.reading {
+                    bigWords("\(reading.band.skyWord).", reading.band.shortLine)
+                    caption(reading)
+                }
             }
-        case .ready:
-            if let reading = model.reading {
-                readingView(reading, ink: ink)
+        }
+        .foregroundStyle(.white)
+        .shadow(color: .black.opacity(0.2), radius: 10, y: 1)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func bigWords(_ first: String, _ second: String) -> some View {
+        VStack(spacing: 0) {
+            Text(first)
+            Text(second).opacity(0.6)
+        }
+        .font(.system(size: 42, weight: .regular))
+        .multilineTextAlignment(.center)
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
+        .contentTransition(.opacity)
+    }
+
+    /// "Now · Satisfactory · PM2.5 48 · Estimated", and the Moderate warning when it applies.
+    private func caption(_ reading: HourReading) -> some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 7) {
+                Circle().fill(reading.band.color).frame(width: 8, height: 8)
+                    .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 1.5))
+                Text("\(timeLabel) · \(reading.band.name) · PM2.5 \(Int(reading.pm25Value.rounded()))")
+                Text("ESTIMATED")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(.white.opacity(0.6), lineWidth: 1))
+            }
+            if AirBand.mayReachModerate(pm25: reading.pm25Value) {
+                Text("May reach Moderate")
+            }
+        }
+        .font(.footnote.weight(.medium))
+        .monospacedDigit()
+    }
+
+    /// Two glass cards: plan a run from here, and the most useful time action.
+    @ViewBuilder
+    private var cards: some View {
+        HStack(spacing: 12) {
+            switch model.status {
+            case .ready:
+                GlassCard(title: "Plan a run", systemImage: "figure.run") { onPlanRun(model.place) }
+                timeCard
+            case .failed:
+                GlassCard(title: "Try again", systemImage: "arrow.clockwise") { refresh() }
+                GlassCard(title: "Your places", systemImage: "mappin.and.ellipse", action: onShowPlaces)
+            case .locationOff, .outsideCoverage:
+                GlassCard(title: "Choose a place", systemImage: "mappin.and.ellipse", action: onShowPlaces)
+                GlassCard(title: "Your journey", systemImage: "star", action: onShowJourney)
+            case .loading:
+                GlassCard(title: "Plan a run", systemImage: "figure.run") { onPlanRun(model.place) }
+                GlassCard(title: "Your journey", systemImage: "star", action: onShowJourney)
             }
         }
     }
 
-    private func readingView(_ reading: HourReading, ink: Color) -> some View {
-        let band = reading.band
-        let pm25 = reading.pm25Value
-        return VStack(alignment: .leading, spacing: 12) {
-            Text(band.skyWord)
-                .font(.system(size: 96, weight: .heavy))
-                .fontWidth(.condensed)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-                .contentTransition(.opacity)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Circle().fill(band.color).frame(width: 10, height: 10)
-                        .overlay(Circle().stroke(ink.opacity(0.85), lineWidth: 2))
-                    Text("\(band.name) · PM2.5 \(Int(pm25.rounded()))")
-                }
-                .font(.callout.weight(.medium))
-                if AirBand.mayReachModerate(pm25: pm25) {
-                    Text("May reach Moderate")
-                        .font(.callout)
-                        .padding(.leading, 18)
-                        .opacity(0.9)
-                }
+    /// Back to now when looking ahead; otherwise the cleanest time today, if clearly
+    /// cleaner than now; otherwise the journey.
+    @ViewBuilder
+    private var timeCard: some View {
+        if model.index != model.nowIndex {
+            GlassCard(title: "Back to now", systemImage: "arrow.uturn.backward") {
+                withAnimation(.smooth(duration: 0.9)) { model.position = Double(model.nowIndex) }
             }
-            Text(band.runningAdvice)
-                .font(.title3)
-                .fixedSize(horizontal: false, vertical: true)
-            if model.index == model.nowIndex, let best = bestWindowSuggestion(currentPM25: pm25) {
-                Button {
-                    withAnimation(.smooth(duration: 0.9)) { model.position = Double(best.index) }
-                } label: {
-                    Text("Cleanest around \(Self.time(model.forecast!.hours[best.index].start)) →")
-                        .font(.callout.weight(.semibold))
-                        .underline()
+        } else if let reading = model.reading, let best = bestWindowSuggestion(currentPM25: reading.pm25Value),
+                  let start = model.forecast?.hours[best.index].start {
+            GlassCard(title: "Cleanest at \(Self.time(start))", systemImage: "sun.horizon") {
+                withAnimation(.smooth(duration: 0.9)) { model.position = Double(best.index) }
+            }
+        } else {
+            GlassCard(title: "Your journey", systemImage: "star", action: onShowJourney)
+        }
+    }
+
+    // MARK: - Below the landscape
+
+    private var lower: some View {
+        VStack(spacing: 16) {
+            if model.status == .ready { timeline }
+            if let reading = model.reading, model.status == .ready {
+                Text(reading.band.runningAdvice)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            VStack(spacing: 3) {
+                Text("north star")
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                Text("Keep going.")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+        }
+        .padding(.horizontal, 26)
+        .padding(.top, 18)
+        .padding(.bottom, insets.bottom + 10)
+    }
+
+    private var timeline: some View {
+        let count = model.forecast?.hours.count ?? 1
+        let fraction = count > 1 ? model.position / Double(count - 1) : 0
+        let ahead = model.index - model.nowIndex
+        return VStack(spacing: 8) {
+            HStack {
+                Text(timeLabel).font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(ahead > 0 ? "in \(ahead) h" : ahead < 0 ? "\(-ahead) h ago" : "next 36 hours")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.primary.opacity(0.15)).frame(height: 3)
+                    Capsule().fill(.primary.opacity(0.55)).frame(width: max(0, geometry.size.width * fraction), height: 3)
+                    Circle().fill(.primary).frame(width: 14, height: 14)
+                        .offset(x: geometry.size.width * fraction - 7)
                 }
-                .buttonStyle(.plain)
+                .frame(maxHeight: .infinity)
+            }
+            .frame(height: 16)
+            Text("Drag the landscape to look ahead")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let madeAt = model.forecast?.madeAt, Date.now.timeIntervalSince(madeAt) > 3 * 3600 {
+                Text("Forecast from \(Int(Date.now.timeIntervalSince(madeAt) / 3600)) hours ago")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Showing \(timeLabel)")
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment: model.position = Double(min(model.index + 1, (model.forecast?.hours.count ?? 1) - 1))
             case .decrement: model.position = Double(max(model.index - 1, 0))
             @unknown default: break
             }
-        }
-    }
-
-    private func timeline(ink: Color) -> some View {
-        let count = model.forecast?.hours.count ?? 1
-        let fraction = count > 1 ? model.position / Double(count - 1) : 0
-        let ahead = model.index - model.nowIndex
-        return VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                Text(timeLabel).font(.callout.weight(.semibold))
-                Text("Estimated")
-                    .font(.caption2.weight(.semibold))
-                    .textCase(.uppercase)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(ink.opacity(0.6), lineWidth: 1))
-                Spacer()
-                Text(ahead > 0 ? "in \(ahead) h" : ahead < 0 ? "\(-ahead) h ago" : "")
-                    .font(.footnote.monospacedDigit())
-                    .opacity(0.8)
-            }
-            .legible(ink)
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(ink.opacity(0.35)).frame(height: 2)
-                    Circle().fill(ink).frame(width: 16, height: 16)
-                        .shadow(color: .black.opacity(ink == .white ? 0.2 : 0), radius: 2)
-                        .offset(x: geometry.size.width * fraction - 8)
-                }
-                .frame(maxHeight: .infinity)
-            }
-            .frame(height: 20)
-            Text("Drag anywhere to look ahead")
-                .font(.caption.monospaced())
-                .opacity(0.75)
-                .frame(maxWidth: .infinity)
-                .legible(ink)
-            if let madeAt = model.forecast?.madeAt, Date.now.timeIntervalSince(madeAt) > 3 * 3600 {
-                Text("Forecast from \(Int(Date.now.timeIntervalSince(madeAt) / 3600)) hours ago")
-                    .font(.caption).opacity(0.8)
-                    .legible(ink)
-            }
-        }
-    }
-
-    private func message(title: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.system(size: 64, weight: .heavy)).fontWidth(.condensed)
-            Text(text).font(.title3).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -295,16 +351,7 @@ struct SkyScreen: View {
     static func weekday(_ date: Date) -> String { weekdayFormatter.string(from: date) }
 }
 
-private extension View {
-    /// A soft shadow that keeps white text readable on pale skies. Applied to the
-    /// text blocks separately (not the whole page), so moving the time knob does
-    /// not force every shadow on the page to be redrawn.
-    func legible(_ ink: Color) -> some View {
-        shadow(color: .black.opacity(ink == .white ? 0.15 : 0), radius: 10, y: 1)
-    }
-}
-
 #Preview {
     SkyScreen(place: Place.runningSpots[0], location: LocationProvider(), insets: EdgeInsets(),
-              scrubbing: .constant(false), onShowPlaces: {}, onPlanRun: { _ in })
+              scrubbing: .constant(false), onShowPlaces: {}, onPlanRun: { _ in }, onShowJourney: {})
 }

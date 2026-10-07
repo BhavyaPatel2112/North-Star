@@ -45,6 +45,18 @@ enum AirBand: Int, CaseIterable, Comparable {
         }
     }
 
+    /// The short second line under the big word on the Today screen.
+    var shortLine: String {
+        switch self {
+        case .good: "Go for a run."
+        case .satisfactory: "Good for a run."
+        case .moderate: "Keep it short."
+        case .poor: "Rest today."
+        case .veryPoor: "Stay in."
+        case .severe: "Stay indoors."
+        }
+    }
+
     /// One line of advice for someone thinking about a run.
     var runningAdvice: String {
         switch self {

@@ -1,16 +1,17 @@
 import SwiftData
 import SwiftUI
 
-/// All the places as full-screen skies stacked vertically: swipe up or down to
+/// All the places as full-screen pages stacked vertically: swipe up or down to
 /// move between them. The first is always "Current location", then saved places.
 struct SkyPager: View {
     @Query(sort: \SavedPlace.sortOrder) private var saved: [SavedPlace]
-    @State private var location = LocationProvider()
+    let location: LocationProvider
+    /// Opens the Plan tab with a start place, and the Journey tab.
+    let onPlanRun: (Place) -> Void
+    let onShowJourney: () -> Void
     @State private var selection: String? = Place.current.id
     @State private var scrubbing = false
     @State private var showingPlaces = false
-    /// The place a run is being planned from (opens the planner).
-    @State private var planningFrom: Place?
 
     @Environment(\.modelContext) private var context
 
@@ -24,7 +25,10 @@ struct SkyPager: View {
     private let debugPlace: Place?
     private let debugHoursAhead: Int
 
-    init() {
+    init(location: LocationProvider, onPlanRun: @escaping (Place) -> Void, onShowJourney: @escaping () -> Void) {
+        self.location = location
+        self.onPlanRun = onPlanRun
+        self.onShowJourney = onShowJourney
         #if DEBUG
         let defaults = UserDefaults.standard
         debugPlace = defaults.string(forKey: "place").flatMap { id in Place.runningSpots.first { $0.id == id } }
@@ -52,10 +56,10 @@ struct SkyPager: View {
             }
         }
         if defaults.bool(forKey: "showPlaces") { showingPlaces = true }
-        if defaults.bool(forKey: "planCurrent") { planningFrom = .current }
+        if defaults.bool(forKey: "planCurrent") { onPlanRun(.current) }
         if defaults.object(forKey: "planLat") != nil {
-            planningFrom = Place(id: "debug-plan", name: "Test start",
-                                 lat: defaults.double(forKey: "planLat"), lon: defaults.double(forKey: "planLon"))
+            onPlanRun(Place(id: "debug-plan", name: "Test start",
+                            lat: defaults.double(forKey: "planLat"), lon: defaults.double(forKey: "planLon")))
         }
         #endif
     }
@@ -73,7 +77,7 @@ struct SkyPager: View {
                         SkyScreen(place: place, location: location, insets: geometry.safeAreaInsets,
                                   scrubbing: $scrubbing, hoursAhead: debugHoursAhead,
                                   onShowPlaces: { showingPlaces = true },
-                                  onPlanRun: { planningFrom = $0 })
+                                  onPlanRun: onPlanRun, onShowJourney: onShowJourney)
                         .containerRelativeFrame([.horizontal, .vertical])
                         .id(place.id)
                     }
@@ -91,9 +95,7 @@ struct SkyPager: View {
         .sheet(isPresented: $showingPlaces) {
             PlacesSheet(selection: $selection, location: location)
         }
-        .sheet(item: $planningFrom) { place in
-            PlannerView(start: place, location: location)
-        }
+
     }
 
     /// Small dots on the right edge showing which place you are on (only with 2 or more).
