@@ -15,14 +15,20 @@ final class PlannerModel {
         case failed(String)
     }
 
-    var start: Place
+    var start: Place {
+        didSet { if start != oldValue { startAddress = nil; lookUpStartAddress() } }
+    }
+    /// A readable address for the start, like "Gundecha Trillium, Thakur Village".
+    private(set) var startAddress: String?
+    /// False (the default) keeps routes off highways and mostly-main-road streets.
+    var allowBusyRoads = false
     var distanceKm: Double = 5
     var kind: RouteService.Kind = .loop
     /// One way only: where to finish. Nil lets North Star choose a clean finish.
     var finish: Place? {
         didSet { raiseDistanceToReachFinish() }
     }
-    /// One way, no finish chosen: end at a cafe, restaurant or bakery.
+    /// One way, no finish chosen: end at a popular, well-rated restaurant or cafe.
     var endNearFood = false
     /// Nil means "now".
     var startTime: Date?
@@ -58,13 +64,54 @@ final class PlannerModel {
         return nil
     }
 
-    /// Starts waking the server as soon as the planner opens.
+    /// True while the phone is still pinning down a precise location for the start.
+    var isLocating: Bool { start.coordinate == nil && location.state == .locating }
+    /// True when "Precise Location" is off for this app, so the start could be far off.
+    var startIsRough: Bool { start.coordinate == nil && location.isReducedAccuracy }
+    /// How far off the current location may be, in metres.
+    var locationAccuracyM: Double? { start.coordinate == nil ? location.accuracyM : nil }
+
+    /// Starts waking the server as soon as the planner opens, and pins down the start.
     func prepare() {
-        if start.coordinate == nil { location.locate() }
+        if start.coordinate == nil { refreshLocation() } else { lookUpStartAddress() }
         Task { await service.wake() }
     }
 
+    /// Asks GPS for a precise fix (up to 10 seconds), then looks up its address.
+    func refreshLocation() {
+        location.locatePrecisely()
+        Task { @MainActor in
+            while location.state == .locating { try? await Task.sleep(for: .milliseconds(300)) }
+            lookUpStartAddress()
+        }
+    }
+
+    /// Moves the start to a point the user tapped on the map.
+    func pinStart(at coordinate: CLLocationCoordinate2D) {
+        start = Place(id: "pin-\(coordinate.latitude),\(coordinate.longitude)", name: "Pinned start", coordinate: coordinate)
+    }
+
+    /// Looks up the start's address with Apple Maps (on the phone, free).
+    private func lookUpStartAddress() {
+        guard let coordinate = startCoordinate else { return }
+        let looking = start
+        Task { @MainActor in
+            let placemark = try? await CLGeocoder()
+                .reverseGeocodeLocation(CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+                .first
+            guard start == looking, let placemark else { return }
+            // Building or street name, then the neighbourhood: "Gundecha Trillium, Thakur Village".
+            let parts = [placemark.name, placemark.subLocality ?? placemark.locality].compactMap { $0 }
+            startAddress = Array(NSOrderedSet(array: parts)).compactMap { $0 as? String }.joined(separator: ", ")
+        }
+    }
+
     func planRoutes() async {
+        // If GPS is still pinning down "Current location", wait for it (it gives up after 10 s).
+        if isLocating {
+            phase = .planning(wakingUp: false)
+            for _ in 0..<40 where isLocating { try? await Task.sleep(for: .milliseconds(300)) }
+        }
         guard let origin = startCoordinate else {
             phase = .failed(location.state == .denied
                 ? "Location is off. Choose a start place, or allow location in Settings."
@@ -80,24 +127,23 @@ final class PlannerModel {
         defer { slowNotice.cancel() }
 
         var finishes: [RouteService.FinishPlace] = []
+        let wantsFood = kind == .oneWay && finish == nil && endNearFood
         if kind == .oneWay {
             if let finish, let c = finish.coordinate {
                 finishes = [.init(name: finish.name, lat: c.latitude, lon: c.longitude)]
-            } else if endNearFood {
+            } else if wantsFood {
+                // The server picks well-rated places from Google; these are its fallback.
                 finishes = await NearbyPlaces.foodFinishes(near: origin, distanceKm: distanceKm)
                 #if DEBUG
-                print("Food finishes from Apple Maps:", finishes.count)
+                print("Food fallback from Apple Maps:", finishes.count)
                 #endif
-                if finishes.isEmpty {
-                    phase = .failed("Apple Maps found no cafes or restaurants about \(Self.format(km: distanceKm)) away. Try another distance, or turn off \"End near food\".")
-                    return
-                }
             }
         }
 
         do {
             let plan = try await service.plan(start: origin, distanceKm: distanceKm, kind: kind,
-                                              startTime: startTime, finishPlaces: finishes)
+                                              startTime: startTime, finishPlaces: finishes,
+                                              endNearFood: wantsFood, allowBusyRoads: allowBusyRoads)
             phase = plan.options.isEmpty ? .failed(Self.noRouteMessage(plan, finish: finish)) : .planned(plan)
         } catch let error as URLError where error.code == .timedOut {
             phase = .failed("The route planner took too long to answer. It may still be waking up; try again.")

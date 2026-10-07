@@ -1,4 +1,5 @@
 import CoreLocation
+import MapKit
 import SwiftData
 import SwiftUI
 
@@ -7,7 +8,9 @@ import SwiftUI
 struct PlannerView: View {
     @State private var model: PlannerModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var showResults = false
+    @State private var startCamera: MapCameraPosition = .automatic
 
     let location: LocationProvider
 
@@ -19,12 +22,28 @@ struct PlannerView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Start") {
+                Section {
                     NavigationLink {
                         PlacePicker(title: "Start", location: location, allowsCurrent: true) { model.start = $0 }
                     } label: {
-                        Label(model.start.name, systemImage: model.start == .current ? "location.fill" : "mappin.and.ellipse")
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(model.start.name)
+                                if let address = model.startAddress {
+                                    Text(address).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        } icon: {
+                            Image(systemName: model.start == .current ? "location.fill" : "mappin.and.ellipse")
+                        }
                     }
+                    startMap
+                    locationStatus
+                    popularStarts
+                } header: {
+                    Text("Start")
+                } footer: {
+                    Text("Tap the map to move the start exactly where you want it.")
                 }
 
                 Section {
@@ -51,6 +70,14 @@ struct PlannerView: View {
 
                 if model.kind == .oneWay {
                     Section { oneWayOptions }
+                }
+
+                Section {
+                    Toggle("OK with highways and busy roads", isOn: $model.allowBusyRoads)
+                } footer: {
+                    Text(model.allowBusyRoads
+                         ? "Routes may cross highways and follow main roads with heavy traffic."
+                         : "Routes never cross a highway (at a signal, under a flyover or over a bridge) and stay off roads that are mostly main road.")
                 }
 
                 Section("Start time") {
@@ -128,6 +155,88 @@ struct PlannerView: View {
         .padding(.vertical, 4)
     }
 
+    /// A small map of the start. Tapping it pins the start to that exact point.
+    private var startMap: some View {
+        MapReader { proxy in
+            Map(position: $startCamera, interactionModes: [.pan, .zoom]) {
+                if let c = model.startCoordinate {
+                    Marker("Start", systemImage: "figure.run", coordinate: c).tint(.black)
+                }
+            }
+            .mapStyle(.standard(pointsOfInterest: .excludingAll))
+            .onTapGesture { point in
+                if let c = proxy.convert(point, from: .local) { model.pinStart(at: c) }
+            }
+        }
+        .frame(height: 170)
+        .listRowInsets(EdgeInsets())
+        .onChange(of: model.startCoordinate?.latitude, initial: true) { recentre() }
+        .onChange(of: model.startCoordinate?.longitude) { recentre() }
+    }
+
+    private func recentre() {
+        guard let c = model.startCoordinate else { return }
+        startCamera = .region(MKCoordinateRegion(center: c, latitudinalMeters: 600, longitudinalMeters: 600))
+    }
+
+    /// How sure we are of "Current location", with a fix for the common problems.
+    @ViewBuilder
+    private var locationStatus: some View {
+        if model.start == .current {
+            if model.startIsRough {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Precise Location is off", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text("Your start could be a kilometre or more off. Turn on Precise Location for North Star in Settings, or tap the map to set the start.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    #if os(iOS)
+                    Button("Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    }
+                    #endif
+                }
+            } else if model.isLocating {
+                HStack {
+                    ProgressView()
+                    Text("Finding your exact spot…").foregroundStyle(.secondary)
+                }
+            } else {
+                HStack {
+                    if let accuracy = model.locationAccuracyM {
+                        Text("Accurate to about \(Int(max(5, accuracy).rounded())) m").foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Locate again") { model.refreshLocation() }
+                }
+                .font(.subheadline)
+            }
+        }
+    }
+
+    /// Popular running spots, one tap away.
+    private var popularStarts: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if model.start != .current {
+                    chip("Current location", systemImage: "location.fill") { model.start = .current; model.refreshLocation() }
+                }
+                ForEach(Place.runningSpots) { spot in
+                    chip(spot.name, selected: model.start == spot) { model.start = spot }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func chip(_ title: String, systemImage: String? = nil, selected: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            if let systemImage { Label(title, systemImage: systemImage) } else { Text(title) }
+        }
+        .buttonStyle(.bordered)
+        .tint(selected ? .accentColor : .secondary)
+        .font(.subheadline)
+    }
+
     @ViewBuilder
     private var oneWayOptions: some View {
         NavigationLink {
@@ -138,7 +247,13 @@ struct PlannerView: View {
         if model.finish != nil {
             Button("Let North Star choose the finish", role: .destructive) { model.finish = nil }
         } else {
-            Toggle("End near food", isOn: $model.endNearFood)
+            Toggle(isOn: $model.endNearFood) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("End near food")
+                    Text("Finish at a popular, well-rated restaurant or cafe")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -163,6 +278,7 @@ struct PlannerView: View {
         if defaults.double(forKey: "planKm") > 0 { model.distanceKm = defaults.double(forKey: "planKm") }
         if defaults.string(forKey: "planKind") == "one_way" { model.kind = .oneWay }
         if defaults.bool(forKey: "planFood") { model.endNearFood = true }
+        if defaults.bool(forKey: "planBusy") { model.allowBusyRoads = true }
         if defaults.bool(forKey: "planAuto") {
             Task {
                 await model.planRoutes()

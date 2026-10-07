@@ -15,10 +15,10 @@ struct SkyPager: View {
     @Environment(\.modelContext) private var context
 
     /// Debug-only launch options for screenshots without touching the screen:
-    /// "-place juhu" shows one running spot, "-hoursAhead 8" opens 8 hours ahead,
+    /// "-place worli" shows one running spot, "-hoursAhead 8" opens 8 hours ahead,
     /// "-seedPlaces YES" adds sample places if there are none, "-page 2" opens the
     /// third page, "-showPlaces YES" opens the places list. Run planner:
-    /// "-planLat 19.0269 -planLon 72.8382" opens the planner from that point, and
+    /// "-planLat 19.0269 -planLon 72.8382" (or "-planCurrent YES") opens the planner, and
     /// "-planKm 5 -planKind one_way -planAuto YES -planDetail YES" plans straight away
     /// and opens the first route (each plan uses up to 6 Google walking checks).
     private let debugPlace: Place?
@@ -52,6 +52,7 @@ struct SkyPager: View {
             }
         }
         if defaults.bool(forKey: "showPlaces") { showingPlaces = true }
+        if defaults.bool(forKey: "planCurrent") { planningFrom = .current }
         if defaults.object(forKey: "planLat") != nil {
             planningFrom = Place(id: "debug-plan", name: "Test start",
                                  lat: defaults.double(forKey: "planLat"), lon: defaults.double(forKey: "planLon"))

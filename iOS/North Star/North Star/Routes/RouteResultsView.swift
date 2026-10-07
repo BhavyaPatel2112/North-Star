@@ -31,7 +31,10 @@ struct RouteResultsView: View {
                         optionRow(shape.option, number: index + 1, isSelected: shape.option.id == selected?.option.id)
                     }
                 } footer: {
-                    Text("Pollution is estimated for your start time. Colours on the map show cleaner and dirtier stretches.")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Pollution is estimated for your start time. Colours on the map show cleaner and dirtier stretches.")
+                        if plan.foodSource == "google" { Text("Restaurant ratings from Google.") }
+                    }
                 }
             }
             #if os(iOS)
@@ -65,7 +68,14 @@ struct RouteResultsView: View {
                                 .font(.headline)
                             Circle().fill(option.band.color).frame(width: 9, height: 9)
                         }
+                        if let finish = RouteText.finish(option) {
+                            Text(finish).font(.subheadline)
+                        }
                         Text(RouteText.summary(option)).font(.subheadline).foregroundStyle(.secondary)
+                        if let warning = RouteText.busyWarning(option) {
+                            Label(warning, systemImage: "exclamationmark.triangle")
+                                .font(.subheadline).foregroundStyle(.orange)
+                        }
                         if let best = option.bestStart {
                             Text("Cleanest start \(RouteText.time(best.time)) (PM2.5 \(Int(best.pm25.rounded())))")
                                 .font(.subheadline)
@@ -150,12 +160,31 @@ struct RouteMap: View {
 enum RouteText {
     static func summary(_ option: RouteOption) -> String {
         var parts = [option.label]
-        if let place = option.finishPlace { parts.insert("Ends at \(place.name)", at: 0) }
         if let pct = option.cleanerThanDirectPct, pct >= 2 {
             parts.append("\(pct)% cleaner than the plain route")
         }
         if !option.walkCheck.checked { parts.append("not checked against walking directions") }
         return parts.joined(separator: " · ")
+    }
+
+    /// "Ends at McDonald's · 4.3★ (2,140 reviews)".
+    static func finish(_ option: RouteOption) -> String? {
+        guard let place = option.finishPlace else { return nil }
+        var text = "Ends at \(place.name)"
+        if let rating = place.rating {
+            text += String(format: " · %.1f★", rating)
+            if let reviews = place.reviews { text += " (\(reviews.formatted()) reviews)" }
+        }
+        return text
+    }
+
+    /// A warning when the route crosses a highway or uses main roads (only when the user allowed it).
+    static func busyWarning(_ option: RouteOption) -> String? {
+        var parts: [String] = []
+        if option.highwayCrossings == 1 { parts.append("Crosses a highway") }
+        if option.highwayCrossings > 1 { parts.append("Crosses highways \(option.highwayCrossings) times") }
+        if option.busyKm >= 0.3 { parts.append(String(format: "%.1f km on main roads", option.busyKm)) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     static func time(_ date: Date) -> String { SkyScreen.time(date) }

@@ -9,10 +9,13 @@ struct RoutePlan: Decodable {
     let options: [RouteOption]
     /// A plain-language note from the server when there are no options.
     let message: String?
+    /// Where restaurant finishes came from: "google" (rated places), "apple (...)" or nil.
+    let foodSource: String?
 
     enum CodingKeys: String, CodingKey {
         case options, message
         case forecastHour = "forecast_hour"
+        case foodSource = "food_source"
     }
 }
 
@@ -31,6 +34,10 @@ struct RouteOption: Decodable, Identifiable {
     /// Share of the route on quiet streets and on main roads (0 to 1).
     let quietShare: Double
     let mainRoadShare: Double
+    /// Times the route crosses a highway (at road level, under a flyover or over a bridge).
+    let highwayCrossings: Int
+    /// Kilometres along main roads and highways.
+    let busyKm: Double
     /// The finish, and the named place there if the run ends at one (for example a cafe).
     let finish: Coordinate
     let finishPlace: FinishPlace?
@@ -53,6 +60,9 @@ struct RouteOption: Decodable, Identifiable {
     struct FinishPlace: Decodable {
         let name: String
         let lat, lon: Double
+        /// Google rating (1 to 5) and number of reviews, when the place came from Google.
+        let rating: Double?
+        let reviews: Int?
     }
 
     struct HourValue: Decodable, Identifiable {
@@ -73,6 +83,8 @@ struct RouteOption: Decodable, Identifiable {
         case cleanerThanDirectPct = "cleaner_than_direct_pct"
         case quietShare = "quiet_share"
         case mainRoadShare = "main_road_share"
+        case highwayCrossings = "highway_crossings"
+        case busyKm = "busy_km"
         case finishPlace = "finish_place"
         case byHour = "by_hour"
         case bestStart = "best_start"
@@ -89,6 +101,9 @@ struct RouteOption: Decodable, Identifiable {
         cleanerThanDirectPct = try c.decodeIfPresent(Int.self, forKey: .cleanerThanDirectPct)
         quietShare = try c.decode(Double.self, forKey: .quietShare)
         mainRoadShare = try c.decode(Double.self, forKey: .mainRoadShare)
+        // Older servers do not send these.
+        highwayCrossings = try c.decodeIfPresent(Int.self, forKey: .highwayCrossings) ?? 0
+        busyKm = try c.decodeIfPresent(Double.self, forKey: .busyKm) ?? 0
         finish = try c.decode(Coordinate.self, forKey: .finish)
         finishPlace = try c.decodeIfPresent(FinishPlace.self, forKey: .finishPlace)
         // The line arrives as [[latitude, longitude], ...].

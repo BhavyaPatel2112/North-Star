@@ -24,6 +24,17 @@ struct RouteDetailView: View {
                 pointerControl
             }
 
+            if RouteText.finish(option) != nil || RouteText.busyWarning(option) != nil {
+                Section {
+                    if let finish = RouteText.finish(option) { Label(finish, systemImage: "fork.knife") }
+                    if let warning = RouteText.busyWarning(option) {
+                        Label(warning, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    }
+                } footer: {
+                    if option.finishPlace?.rating != nil { Text("Rating from Google.") }
+                }
+            }
+
             Section("When to go") { hourChart }
 
             Section {
@@ -38,8 +49,8 @@ struct RouteDetailView: View {
 
             Section {
                 if stops.isEmpty {
-                    Text(lookedForStops ? "Apple Maps shows no pharmacies, shops or clinics within 400 m of this route."
-                                        : "Looking for pharmacies, water and clinics near the route…")
+                    Text(lookedForStops ? "Apple Maps shows no medical stores, shops or clinics near this route."
+                                        : "Looking for medical stores, water and clinics near the route…")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(stops) { stop in
@@ -75,6 +86,9 @@ struct RouteDetailView: View {
         .task {
             stops = await NearbyPlaces.stops(along: shape)
             lookedForStops = true
+            #if DEBUG
+            for stop in stops { print("Stop:", stop.kind.rawValue, "|", stop.name, "|", Int(stop.offRouteM), "m off route at km", String(format: "%.1f", stop.atKm)) }
+            #endif
         }
     }
 
