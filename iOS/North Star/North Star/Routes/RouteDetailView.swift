@@ -16,72 +16,78 @@ struct RouteDetailView: View {
     private var option: RouteOption { shape.option }
 
     var body: some View {
-        List {
-            Section {
-                RouteMap(shapes: [shape], selectedID: option.id, pointer: shape.point(atKm: pointerKm), stops: stops)
-                    .frame(height: 320)
-                    .listRowInsets(EdgeInsets())
-                pointerControl
-            }
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 14) {
+                    RouteMap(shapes: [shape], selectedID: option.id, pointer: shape.point(atKm: pointerKm), stops: stops)
+                        .frame(height: geometry.size.height * 0.42 + geometry.safeAreaInsets.top)
+                        .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 32, bottomTrailingRadius: 32, style: .continuous))
 
-            if RouteText.finish(option) != nil || RouteText.busyWarning(option) != nil {
-                Section {
-                    if let finish = RouteText.finish(option) { Label(finish, systemImage: "fork.knife") }
-                    if let warning = RouteText.busyWarning(option) {
-                        Label(warning, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
-                    }
-                } footer: {
-                    if option.finishPlace?.rating != nil { Text("Rating from Google.") }
-                }
-            }
+                    JourneyCard { pointerControl }.padding(.horizontal, 16)
 
-            Section("When to go") { hourChart }
-
-            Section {
-                ForEach(option.steps) { step in
-                    stepRow(step)
-                }
-            } header: {
-                Text("Steps")
-            } footer: {
-                Text("Pollution is estimated for each street at your start time.")
-            }
-
-            Section {
-                if stops.isEmpty {
-                    Text(lookedForStops ? "Apple Maps shows no medical stores, shops or clinics near this route."
-                                        : "Looking for medical stores, water and clinics near the route…")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(stops) { stop in
-                        Label {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(stop.name)
-                                Text("\(stop.kind.rawValue) · \(Int(stop.offRouteM.rounded(to: 10))) m off route at km \(String(format: "%.1f", stop.atKm))")
-                                    .font(.caption).foregroundStyle(.secondary)
+                    if RouteText.finish(option) != nil || RouteText.busyWarning(option) != nil {
+                        JourneyCard {
+                            if let finish = RouteText.finish(option) { Label(finish, systemImage: "fork.knife") }
+                            if let warning = RouteText.busyWarning(option) {
+                                Label(warning, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                             }
-                        } icon: {
-                            Image(systemName: stop.kind.symbol)
+                            if option.finishPlace?.rating != nil { CardNote(text: "Rating from Google.") }
                         }
+                        .padding(.horizontal, 16)
                     }
-                }
-            } header: {
-                Text("Along the way")
-            } footer: {
-                Text("From Apple Maps. Opening hours are not always known, so check before you rely on a stop.")
-            }
 
-            Section {
-                if let link = option.googleMapsLink {
-                    Button { openURL(link) } label: { Label("Open in Google Maps", systemImage: "arrow.up.right.square") }
+                    JourneyCard(title: "When to go") { hourChart }.padding(.horizontal, 16)
+
+                    JourneyCard(title: "Along the way") {
+                        if stops.isEmpty {
+                            CardNote(text: lookedForStops ? "Apple Maps shows no medical stores, shops or clinics near this route."
+                                                          : "Looking for medical stores, water and clinics near the route…")
+                        } else {
+                            ForEach(stops) { stop in
+                                HStack(alignment: .top, spacing: 12) {
+                                    Image(systemName: stop.kind.symbol)
+                                        .frame(width: 30, height: 30)
+                                        .background(Theme.ink.opacity(0.07), in: Circle())
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(stop.name).font(.subheadline.weight(.medium))
+                                        Text("\(stop.kind.rawValue) · \(Int(stop.offRouteM.rounded(to: 10))) m off route at km \(String(format: "%.1f", stop.atKm))")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                        CardNote(text: "From Apple Maps. Opening hours are not always known, so check before you rely on a stop.")
+                    }
+                    .padding(.horizontal, 16)
+
+                    JourneyCard(title: "Steps") {
+                        ForEach(option.steps) { step in stepRow(step) }
+                        CardNote(text: "Pollution is estimated for each street at your start time.")
+                    }
+                    .padding(.horizontal, 16)
+
+                    if let link = option.googleMapsLink {
+                        Button { openURL(link) } label: {
+                            Label("Open in Google Maps", systemImage: "arrow.up.right")
+                        }
+                        .buttonStyle(PillButtonStyle())
+                        .padding(.horizontal, 16)
+                    }
+
+                    CardNote(text: "Good to know: footpaths are not always recorded, so busy roads may have none. There is no data on lighting or safety at night. GPS watches can differ from this distance by 2 to 3%.")
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 28)
+                        .padding(.bottom, 24)
                 }
-            } footer: {
-                Text("Good to know: footpaths are not always recorded, so busy roads may have none. There is no data on lighting or safety at night. GPS watches can differ from this distance by 2 to 3%.")
             }
+            .scrollIndicators(.hidden)
+            .ignoresSafeArea(edges: .top)
         }
+        .background(Theme.mist)
         .navigationTitle("\(PlannerModel.format(km: option.distanceKm)) \(option.isLoop ? "loop" : "one way")")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         #endif
         .task {
             stops = await NearbyPlaces.stops(along: shape)
@@ -98,8 +104,8 @@ struct RouteDetailView: View {
     private var pointerControl: some View {
         let step = shape.step(atKm: pointerKm)
         return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(String(format: "km %.1f", pointerKm)).font(.headline.monospacedDigit())
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(String(format: "%.1f", pointerKm)).font(.system(size: 30, weight: .light).monospacedDigit())
                 Text("of \(PlannerModel.format(km: option.distanceKm))").foregroundStyle(.secondary)
                 Spacer()
                 if let step {
@@ -112,10 +118,10 @@ struct RouteDetailView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Slider(value: $pointerKm, in: 0...max(option.distanceKm, 0.1))
+                .tint(Theme.ink)
                 .accessibilityLabel("Position along the route")
                 .sensoryFeedback(.selection, trigger: step?.kmFrom)
         }
-        .padding(.vertical, 4)
     }
 
     /// The route's PM2.5 for each hour over the next day, best start marked.

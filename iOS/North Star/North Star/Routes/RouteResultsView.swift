@@ -21,27 +21,36 @@ struct RouteResultsView: View {
         // Cheap to rebuild (a few hundred points), so worked out on each update.
         let shapes = plan.options.map { RouteShape($0) }
         let selected = shapes.first { $0.option.id == selectedID } ?? shapes.first
-        return VStack(spacing: 0) {
-            RouteMap(shapes: shapes, selectedID: selected?.option.id)
-                .frame(minHeight: 280)
+        return GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // The map as the landscape: full width, rounded at the bottom, under the bar.
+                RouteMap(shapes: shapes, selectedID: selected?.option.id)
+                    .frame(height: geometry.size.height * 0.48 + geometry.safeAreaInsets.top)
+                    .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 32, bottomTrailingRadius: 32, style: .continuous))
 
-            List {
-                Section {
-                    ForEach(Array(shapes.enumerated()), id: \.element.option.id) { index, shape in
-                        optionRow(shape.option, number: index + 1, isSelected: shape.option.id == selected?.option.id)
+                ScrollView {
+                    VStack(spacing: 12) {
+                        ForEach(Array(shapes.enumerated()), id: \.element.option.id) { index, shape in
+                            optionCard(shape.option, number: index + 1, isSelected: shape.option.id == selected?.option.id)
+                        }
+                        VStack(spacing: 4) {
+                            CardNote(text: "Pollution is estimated for your start time. Colours on the map show cleaner and dirtier stretches.")
+                            if plan.foodSource == "google" { CardNote(text: "Restaurant ratings from Google.") }
+                        }
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 12)
                     }
-                } footer: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Pollution is estimated for your start time. Colours on the map show cleaner and dirtier stretches.")
-                        if plan.foodSource == "google" { Text("Restaurant ratings from Google.") }
-                    }
+                    .padding(16)
                 }
+                .scrollIndicators(.hidden)
             }
-            #if os(iOS)
-            .listStyle(.insetGrouped)
-            #endif
+            .ignoresSafeArea(edges: .top)
         }
+        .background(Theme.mist)
         .navigationTitle("\(shapes.count) route\(shapes.count == 1 ? "" : "s")")
+        #if os(iOS)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        #endif
         #if DEBUG
         .navigationDestination(isPresented: $debugDetail) {
             if let first = plan.options.first { RouteDetailView(shape: RouteShape(first)) }
@@ -53,19 +62,21 @@ struct RouteResultsView: View {
         #endif
     }
 
-    private func optionRow(_ option: RouteOption, number: Int, isSelected: Bool) -> some View {
-        HStack(spacing: 12) {
+    /// One option as a card: tap to show it on the map, "Details" to open it.
+    private func optionCard(_ option: RouteOption, number: Int, isSelected: Bool) -> some View {
+        HStack(alignment: .top, spacing: 12) {
             Button {
                 withAnimation(.snappy) { selectedID = option.id }
             } label: {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                        .foregroundStyle(isSelected ? Theme.ink : .secondary)
                         .font(.title3)
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text("\(PlannerModel.format(km: option.distanceKm)) · \(option.band.skyWord)")
-                                .font(.headline)
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(PlannerModel.format(km: option.distanceKm))
+                                .font(.system(size: 26, weight: .light).monospacedDigit())
+                            Text(option.band.skyWord).font(.headline.weight(.regular))
                             Circle().fill(option.band.color).frame(width: 9, height: 9)
                         }
                         if let finish = RouteText.finish(option) {
@@ -87,10 +98,23 @@ struct RouteResultsView: View {
             }
             .buttonStyle(.plain)
 
-            NavigationLink("Details") { RouteDetailView(shape: RouteShape(option)) }
-                .fixedSize()
+            NavigationLink { RouteDetailView(shape: RouteShape(option)) } label: {
+                HStack(spacing: 3) {
+                    Text("Details")
+                    Image(systemName: "chevron.right").font(.caption.weight(.bold))
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Theme.ink.opacity(0.07), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .fixedSize()
         }
-        .padding(.vertical, 4)
+        .padding(16)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .stroke(isSelected ? Theme.ink.opacity(0.35) : .clear, lineWidth: 1.5))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Option \(number)")
     }
@@ -122,7 +146,7 @@ struct RouteMap: View {
                         .stroke(stretch.band.color, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
                 }
                 if let start = shape.start {
-                    Annotation("Start", coordinate: start) { marker("figure.run", .white, .black) }
+                    Annotation("Start", coordinate: start) { marker("figure.walk", .white, Theme.ink) }
                 }
                 if let finish = shape.finish, !shape.option.isLoop {
                     Annotation(shape.option.finishPlace?.name ?? "Finish", coordinate: finish) {
@@ -132,7 +156,7 @@ struct RouteMap: View {
             }
             ForEach(stops) { stop in
                 Annotation(stop.name, coordinate: stop.coordinate) {
-                    marker(stop.kind.symbol, .white, .blue)
+                    marker(stop.kind.symbol, .white, Color(red: 0.2, green: 0.45, blue: 0.52))
                 }
             }
             if let pointer {
@@ -143,7 +167,7 @@ struct RouteMap: View {
                 }
             }
         }
-        .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        .mapStyle(.standard(emphasis: .muted, pointsOfInterest: .excludingAll))
         .onChange(of: selectedID) { camera = .automatic }
     }
 
