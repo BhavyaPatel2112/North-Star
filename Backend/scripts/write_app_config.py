@@ -1,20 +1,28 @@
-"""Write the iOS app's server settings (AppConfig.swift) from Backend/.env.
+"""Write the iOS app's server settings from Backend/.env.
 
-The app needs the Supabase project address and the PUBLISHABLE key, which
-Supabase designs to be shipped inside apps (it can only call app_forecast;
-every table is protected by row level security). Secret keys are refused,
-because the generated file is committed to the public repository.
+1. AppConfig.swift (committed): the Supabase project address and the
+   PUBLISHABLE key, which Supabase designs to be shipped inside apps (it can
+   only call app_forecast; every table is protected by row level security).
+   Secret keys are refused, because this file is in the public repository.
+   Also the route server's address.
+2. RouteServer.plist (NOT committed, listed in .gitignore): the route server's
+   app key (NORTHSTAR_APP_KEY, the same value Render generated). It ships
+   inside the app, so it is not a true secret, but keeping it out of the public
+   repository stops anyone from simply copying it to use our Google allowance.
 
-Run from the Backend folder after changing SUPABASE_PUBLISHABLE_KEY in .env:
+Run from the Backend folder after changing a key in .env:
     .venv/bin/python -m scripts.write_app_config
 """
 
+import plistlib
 from pathlib import Path
 
 from dotenv import dotenv_values
 
 BACKEND = Path(__file__).resolve().parent.parent
 OUTPUT = BACKEND.parent / "iOS" / "North Star" / "North Star" / "Data" / "AppConfig.swift"
+ROUTE_KEY_OUTPUT = OUTPUT.parent / "RouteServer.plist"
+ROUTE_SERVER_URL = "https://north-star-api-w5xt.onrender.com"
 
 
 def main() -> None:
@@ -38,9 +46,16 @@ def main() -> None:
 enum AppConfig {{
     static let supabaseURL = URL(string: "https://{project_id}.supabase.co")
     static let supabasePublishableKey = "{key}"
+    /// The route planner server (its app key is in RouteServer.plist, which is not committed).
+    static let routeServerURL = URL(string: "{ROUTE_SERVER_URL}")
 }}
 ''')
     print(f"Wrote {OUTPUT.relative_to(BACKEND.parent)} (publishable key {'set' if key else 'NOT set yet'})")
+
+    app_key = (env.get("NORTHSTAR_APP_KEY") or "").strip()
+    with open(ROUTE_KEY_OUTPUT, "wb") as f:
+        plistlib.dump({"AppKey": app_key}, f)
+    print(f"Wrote {ROUTE_KEY_OUTPUT.relative_to(BACKEND.parent)} (app key {'set' if app_key else 'NOT set yet'})")
 
 
 if __name__ == "__main__":

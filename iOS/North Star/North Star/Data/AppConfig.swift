@@ -8,4 +8,6 @@ import Foundation
 enum AppConfig {
     static let supabaseURL = URL(string: "https://vrlibkfedffdnkbctvla.supabase.co")
     static let supabasePublishableKey = "sb_publishable_AmKsZ0YtqS0eMu0usGjIGw_IyLBP-sp"
+    /// The route planner server (its app key is in RouteServer.plist, which is not committed).
+    static let routeServerURL = URL(string: "https://north-star-api-w5xt.onrender.com")
 }

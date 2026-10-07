@@ -1,0 +1,153 @@
+import Charts
+import MapKit
+import SwiftUI
+
+/// One route in detail: drag the pointer along it to see each street and how
+/// clean it is, the cleanest time to start, street-by-street steps, and
+/// pharmacies, water and clinics near the route.
+struct RouteDetailView: View {
+    let shape: RouteShape
+
+    @State private var pointerKm: Double = 0
+    @State private var stops: [NearbyPlaces.Stop] = []
+    @State private var lookedForStops = false
+    @Environment(\.openURL) private var openURL
+
+    private var option: RouteOption { shape.option }
+
+    var body: some View {
+        List {
+            Section {
+                RouteMap(shapes: [shape], selectedID: option.id, pointer: shape.point(atKm: pointerKm), stops: stops)
+                    .frame(height: 320)
+                    .listRowInsets(EdgeInsets())
+                pointerControl
+            }
+
+            Section("When to go") { hourChart }
+
+            Section {
+                ForEach(option.steps) { step in
+                    stepRow(step)
+                }
+            } header: {
+                Text("Steps")
+            } footer: {
+                Text("Pollution is estimated for each street at your start time.")
+            }
+
+            Section {
+                if stops.isEmpty {
+                    Text(lookedForStops ? "Apple Maps shows no pharmacies, shops or clinics within 400 m of this route."
+                                        : "Looking for pharmacies, water and clinics near the route…")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(stops) { stop in
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(stop.name)
+                                Text("\(stop.kind.rawValue) · \(Int(stop.offRouteM.rounded(to: 10))) m off route at km \(String(format: "%.1f", stop.atKm))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: stop.kind.symbol)
+                        }
+                    }
+                }
+            } header: {
+                Text("Along the way")
+            } footer: {
+                Text("From Apple Maps. Opening hours are not always known, so check before you rely on a stop.")
+            }
+
+            Section {
+                if let link = option.googleMapsLink {
+                    Button { openURL(link) } label: { Label("Open in Google Maps", systemImage: "arrow.up.right.square") }
+                }
+            } footer: {
+                Text("Good to know: footpaths are not always recorded, so busy roads may have none. There is no data on lighting or safety at night. GPS watches can differ from this distance by 2 to 3%.")
+            }
+        }
+        .navigationTitle("\(PlannerModel.format(km: option.distanceKm)) \(option.isLoop ? "loop" : "one way")")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .task {
+            stops = await NearbyPlaces.stops(along: shape)
+            lookedForStops = true
+        }
+    }
+
+    // MARK: - Pieces
+
+    /// Drag to move a pointer along the route; shows the distance, street and air there.
+    private var pointerControl: some View {
+        let step = shape.step(atKm: pointerKm)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(String(format: "km %.1f", pointerKm)).font(.headline.monospacedDigit())
+                Text("of \(PlannerModel.format(km: option.distanceKm))").foregroundStyle(.secondary)
+                Spacer()
+                if let step {
+                    Circle().fill(step.band.color).frame(width: 9, height: 9)
+                    Text("\(step.band.name) · \(Int(step.pm25.rounded()))").font(.subheadline)
+                }
+            }
+            Text(step?.displayName ?? "")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Slider(value: $pointerKm, in: 0...max(option.distanceKm, 0.1))
+                .accessibilityLabel("Position along the route")
+                .sensoryFeedback(.selection, trigger: step?.kmFrom)
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// The route's PM2.5 for each hour over the next day, best start marked.
+    private var hourChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let best = option.bestStart {
+                Text("Cleanest start: \(RouteText.time(best.time)) · \(AirBand(pm25: best.pm25).name)")
+                    .font(.headline)
+            }
+            Chart(option.byHour) { hour in
+                BarMark(x: .value("Hour", hour.time, unit: .hour), y: .value("PM2.5", hour.pm25))
+                    .foregroundStyle(AirBand(pm25: hour.pm25).color.opacity(hour.time == option.bestStart?.time ? 1 : 0.6))
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .hour, count: 6)) { _ in
+                    AxisGridLine()
+                    AxisValueLabel(format: .dateTime.hour(), centered: false)
+                }
+            }
+            .chartYAxisLabel("PM2.5")
+            .frame(height: 140)
+            Text("Estimated average along this route for each start hour.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func stepRow(_ step: RouteStep) -> some View {
+        Button {
+            withAnimation(.snappy) { pointerKm = step.kmFrom + step.km / 2 }
+        } label: {
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 2).fill(step.band.color).frame(width: 4)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(step.displayName)
+                    Text("\(String(format: "%.2f", step.km)) km · \(step.road) · PM2.5 \(Int(step.pm25.rounded()))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(String(format: "km %.1f", step.kmFrom)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private extension Double {
+    func rounded(to step: Double) -> Double { (self / step).rounded() * step }
+}
