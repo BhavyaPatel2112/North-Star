@@ -10,6 +10,10 @@ struct JourneyView: View {
     /// Kilometres travelled so far. Run tracking (Apple Health) will fill this in;
     /// until then it stays at the start.
     @AppStorage("journeyKm") private var kilometres: Double = 0
+    @AppStorage(JourneyGoal.kmKey) private var goal: Double = 500
+    @AppStorage(JourneyGoal.startKey) private var start: Double = 0
+    @AppStorage(JourneyGoal.whyKey) private var why: String = ""
+    @State private var editingGoal = false
 
     /// Total height of the journey picture, in points.
     private let height: CGFloat = 2300
@@ -19,13 +23,14 @@ struct JourneyView: View {
         ScrollViewReader { reader in
             ScrollView {
                 GeometryReader { geometry in
-                    JourneyMap(kilometres: kilometres, size: CGSize(width: geometry.size.width, height: height))
+                    JourneyMap(kilometres: kilometres, goal: safeGoal, size: CGSize(width: geometry.size.width, height: height),
+                               scheduleKm: JourneyGoal.onSchedule(goal: safeGoal, start: start), why: why)
                 }
                 .frame(height: height)
                 .overlay(alignment: .top) {
                     // An invisible marker at the traveller's height, to scroll to on opening.
                     VStack(spacing: 0) {
-                        Color.clear.frame(height: JourneyStage.y(atKm: kilometres) * height)
+                        Color.clear.frame(height: JourneyStage.y(atShare: kilometres / safeGoal) * height)
                         Color.clear.frame(height: 1).id("traveller")
                         Spacer(minLength: 0)
                     }
@@ -38,8 +43,10 @@ struct JourneyView: View {
             .overlay(alignment: .top) { header }
             #if os(iOS)
             .fullScreenCover(isPresented: $showingStory) { StoryView { showingStory = false } }
+            .fullScreenCover(isPresented: $editingGoal) { GoalSetupView(isEditing: true) { editingGoal = false } }
             #else
             .sheet(isPresented: $showingStory) { StoryView { showingStory = false }.frame(minWidth: 420, minHeight: 760) }
+            .sheet(isPresented: $editingGoal) { GoalSetupView(isEditing: true) { editingGoal = false }.frame(minWidth: 420, minHeight: 760) }
             #endif
             .onAppear {
                 // After the first layout, so the scroll view knows its content.
@@ -49,20 +56,35 @@ struct JourneyView: View {
     }
 
     /// Title and progress, on glass at the top.
+    /// The goal, never zero (before it is set, a 500 km placeholder).
+    private var safeGoal: Double { goal > 0 ? goal : 500 }
+
     private var header: some View {
-        let next = JourneyStage.all.first { $0.kilometres > kilometres }
-        return VStack(spacing: 4) {
+        VStack(spacing: 4) {
             Text("Your journey")
                 .font(.system(size: 26, weight: .regular))
-            Text(progressLine(next: next))
+            if !why.isEmpty {
+                Text("Towards: \(why)")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.star)
+                    .lineLimit(1)
+            }
+            Text(progressLine)
                 .font(.footnote.weight(.medium))
                 .opacity(0.8)
                 .multilineTextAlignment(.center)
-            Button("Why the North Star?") { showingStory = true }
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Theme.star)
-                .buttonStyle(.plain)
-                .padding(.top, 2)
+            Text(paceLine)
+                .font(.footnote)
+                .opacity(0.7)
+                .multilineTextAlignment(.center)
+            HStack(spacing: 16) {
+                Button("Change my North Star") { editingGoal = true }
+                Button("Why the North Star?") { showingStory = true }
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Theme.star)
+            .buttonStyle(.plain)
+            .padding(.top, 2)
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 20)
@@ -72,11 +94,26 @@ struct JourneyView: View {
         .padding(.top, 8)
     }
 
-    private func progressLine(next: JourneyStage?) -> String {
+    /// "62 of 500 km · 63 km to the North Pole"
+    private var progressLine: String {
         let done = String(format: kilometres < 10 ? "%.1f" : "%.0f", kilometres)
-        guard let next else { return "\(done) km. You reached your North Star." }
-        let left = max(0, next.kilometres - kilometres)
-        return "\(done) of \(Int(JourneyStage.total)) km · \(Int(left.rounded(.up))) km to \(next.name)"
+        guard let next = JourneyStage.all.first(where: { $0.share * safeGoal > kilometres }) else {
+            return "\(done) km. You reached your North Star."
+        }
+        let left = max(0, next.share * safeGoal - kilometres)
+        return "\(done) of \(Int(safeGoal).formatted()) km · \(Int(left.rounded(.up)).formatted()) km to \(next.name)"
+    }
+
+    /// "On track · 300 days left", or what it takes to catch up.
+    private var paceLine: String {
+        let elapsed = JourneyGoal.daysSince(start: start)
+        let daysLeft = max(0, Int((JourneyGoal.days - elapsed).rounded(.up)))
+        if kilometres >= safeGoal { return "Reached with \(daysLeft) days to spare." }
+        guard daysLeft > 0 else { return "The year is over. Set a new North Star when you are ready." }
+        let behind = JourneyGoal.onSchedule(goal: safeGoal, start: start) - kilometres
+        if behind <= safeGoal * 0.01 { return "On track · \(daysLeft) days left" }
+        let weekly = (safeGoal - kilometres) / (Double(daysLeft) / 7)
+        return "About \(Int(weekly.rounded(.up))) km a week to stay on course · \(daysLeft) days left"
     }
 }
 
@@ -85,43 +122,42 @@ struct JourneyView: View {
 /// A stop on the journey, with where it sits on the trail.
 struct JourneyStage: Identifiable {
     let name: String
-    let kilometres: Double
+    /// Where the stage sits, as a share of your goal (0 at the start, 1 at the summit).
+    let share: Double
     let line: String
     /// Index of its point on the trail (JourneyTrail.points).
     let point: Int
     var id: String { name }
 
     static let all: [JourneyStage] = [
-        JourneyStage(name: "the arctic plains", kilometres: 0, line: "Every journey starts with one step.", point: 0),
-        JourneyStage(name: "the frozen lake", kilometres: 25, line: "Keep moving. The ice holds.", point: 2),
-        JourneyStage(name: "the North Pole", kilometres: 75, line: "Nothing out here but you and the wind.", point: 5),
-        JourneyStage(name: "the mountain", kilometres: 150, line: "The climb begins. Carry what you have.", point: 6),
-        JourneyStage(name: "your North Star", kilometres: 300, line: "Where you were always heading.", point: JourneyTrail.points.count - 1),
+        JourneyStage(name: "the arctic plains", share: 0, line: "Every journey starts with one step.", point: 0),
+        JourneyStage(name: "the frozen lake", share: 0.08, line: "Keep moving. The ice holds.", point: 2),
+        JourneyStage(name: "the North Pole", share: 0.25, line: "Nothing out here but you and the wind.", point: 5),
+        JourneyStage(name: "the mountain", share: 0.5, line: "The climb begins. Carry what you have.", point: 6),
+        JourneyStage(name: "your North Star", share: 1, line: "Where you were always heading.", point: JourneyTrail.points.count - 1),
     ]
 
-    static var total: Double { all.last!.kilometres }
-
-    /// Where on the trail (0 to 1 along its points) a distance falls, between stages.
-    static func trailPosition(atKm km: Double) -> (index: Int, t: Double) {
+    /// Where on the trail (along its points) a share of the goal falls, between stages.
+    static func trailPosition(atShare share: Double) -> (index: Int, t: Double) {
         let stages = all
-        guard km > 0 else { return (0, 0) }
-        guard km < total else { return (JourneyTrail.points.count - 1, 0) }
-        let i = stages.lastIndex { $0.kilometres <= km }!
+        guard share > 0 else { return (0, 0) }
+        guard share < 1 else { return (JourneyTrail.points.count - 1, 0) }
+        let i = stages.lastIndex { $0.share <= share }!
         let a = stages[i], b = stages[i + 1]
-        let share = (km - a.kilometres) / (b.kilometres - a.kilometres)
-        let exact = Double(a.point) + share * Double(b.point - a.point)
+        let within = (share - a.share) / (b.share - a.share)
+        let exact = Double(a.point) + within * Double(b.point - a.point)
         return (Int(exact), exact - Double(Int(exact)))
     }
 
     /// Height of the traveller on the picture (0 at top, 1 at bottom).
-    static func y(atKm km: Double) -> Double {
-        let p = trailPosition(atKm: km)
+    static func y(atShare share: Double) -> Double {
+        let p = trailPosition(atShare: share)
         let points = JourneyTrail.points
         guard p.index < points.count - 1 else { return points[p.index].y }
         return points[p.index].y + (points[p.index + 1].y - points[p.index].y) * p.t
     }
 
-    func label(isReached: Bool) -> String { kilometres == 0 ? "Start" : "\(Int(kilometres)) km" }
+    func label(goal: Double) -> String { share == 0 ? "Start" : "\(Int((share * goal).rounded()).formatted()) km" }
 }
 
 /// The trail through the journey, as fractions of the picture (x across, y down).
@@ -178,14 +214,22 @@ enum JourneyColours {
 /// The whole journey drawn at a given size (also used, smaller, in the story).
 struct JourneyMap: View {
     let kilometres: Double
+    /// Your goal for the year; the stages sit at shares of it.
+    let goal: Double
     let size: CGSize
+    /// Where you would be today on an even pace (a faint marker), if known.
+    var scheduleKm: Double?
+    /// What you are running towards, shown at the summit.
+    var why: String = ""
     /// Short labels only (names and distances), for small sizes.
     var compact = false
+    /// The line under the name (your own words at the summit, if you gave them).
+    var line: String = ""
     /// The traveller walks (in the story) or stands (on the Journey tab).
     var walking = false
 
     var body: some View {
-        let progress = JourneyStage.trailPosition(atKm: kilometres)
+        let progress = JourneyStage.trailPosition(atShare: kilometres / max(goal, 1))
         ZStack(alignment: .topLeading) {
             // Sky: deep night at the top (the star), paling to arctic twilight below.
             LinearGradient(stops: [
@@ -227,9 +271,19 @@ struct JourneyMap: View {
 
             ForEach(JourneyStage.all) { stage in
                 let point = JourneyTrail.points[stage.point]
-                StageMarker(stage: stage, reached: kilometres >= stage.kilometres,
-                            onLeft: point.x > 0.5, compact: compact)
+                StageMarker(stage: stage, goal: goal, reached: kilometres >= stage.share * goal,
+                            onLeft: point.x > 0.5, compact: compact,
+                            line: stage.share == 1 && !why.isEmpty ? why : stage.line)
                     .position(x: point.x * size.width, y: point.y * size.height)
+            }
+
+            // Where you would be on an even pace: a faint ring on the trail.
+            if let scheduleKm, scheduleKm > kilometres + goal * 0.01 {
+                let p = travellerPoint(JourneyStage.trailPosition(atShare: scheduleKm / max(goal, 1)))
+                Circle().stroke(.white.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                    .frame(width: 22, height: 22)
+                    .position(x: p.x, y: p.y + 16)
+                    .accessibilityLabel("Where you would be on schedule")
             }
 
             Traveller(walking: walking)
@@ -249,10 +303,13 @@ struct JourneyMap: View {
 /// A stop on the trail: a dot, and its name, distance and line beside it.
 private struct StageMarker: View {
     let stage: JourneyStage
+    let goal: Double
     let reached: Bool
     /// Put the text on the left of the dot (when the dot is on the right half).
     let onLeft: Bool
     var compact = false
+    /// The line under the name (your own words at the summit, if you gave them).
+    var line: String = ""
 
     var body: some View {
         let dot = Circle()
@@ -265,12 +322,12 @@ private struct StageMarker: View {
                 // One short line, for small sizes.
                 Text(name).font(.caption.weight(.semibold))
             } else {
-                Text(stage.label(isReached: reached))
+                Text(stage.label(goal: goal))
                     .font(.caption.weight(.semibold))
                     .opacity(0.8)
                 Text(name)
                     .font(.headline.weight(.regular))
-                Text(stage.line)
+                Text(line)
                     .font(.caption)
                     .opacity(0.8)
             }

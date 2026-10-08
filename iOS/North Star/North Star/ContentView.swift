@@ -1,14 +1,16 @@
 import SwiftUI
 
 /// The app's root view: the tabs (Today, Plan, Journey), with the opening star
-/// on top when the app starts, and the story if the user asks "Why the North Star?".
+/// on top when the app starts, the story if the user asks "Why the North Star?",
+/// and, until it is chosen, the screen to set your own North Star (required once).
 struct ContentView: View {
-    enum Intro { case star, story, none }
+    enum Intro { case star, story, goal, none }
 
     @State private var intro: Intro = {
         #if DEBUG
         // "-skipIntro YES" goes straight to the app; "-story 3" opens the story at scene 4.
         if UserDefaults.standard.object(forKey: "story") != nil { return .story }
+        if UserDefaults.standard.bool(forKey: "goalSetup") { return .goal }
         #endif
         return UserDefaults.standard.bool(forKey: "skipIntro") ? .none : .star
     }()
@@ -18,18 +20,25 @@ struct ContentView: View {
             main
             switch intro {
             case .star:
-                LaunchStar(onEnter: { leave(to: .none) }, onStory: { leave(to: .story) })
+                LaunchStar(onEnter: { leave(to: afterIntro) }, onStory: { leave(to: .story) })
                     .transition(.opacity)
                     .zIndex(1)
             case .story:
-                StoryView(startAt: UserDefaults.standard.integer(forKey: "story")) { leave(to: .none) }
+                StoryView(startAt: UserDefaults.standard.integer(forKey: "story")) { leave(to: afterIntro) }
                     .transition(.opacity)
                     .zIndex(2)
+            case .goal:
+                GoalSetupView { leave(to: .none) }
+                    .transition(.opacity)
+                    .zIndex(3)
             case .none:
                 EmptyView()
             }
         }
     }
+
+    /// Where to go after the star or the story: the goal screen until a goal is set.
+    private var afterIntro: Intro { JourneyGoal.isSet ? .none : .goal }
 
     private func leave(to next: Intro) {
         withAnimation(.easeInOut(duration: 0.8)) { intro = next }
