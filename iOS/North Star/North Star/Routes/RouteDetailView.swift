@@ -121,6 +121,84 @@ struct RouteDetailView: View {
                 .tint(Theme.ink)
                 .accessibilityLabel("Position along the route")
                 .sensoryFeedback(.selection, trigger: step?.kmFrom)
+            if let elevation = option.elevation, elevation.points.count > 1 {
+                Divider().padding(.vertical, 4)
+                elevationChart(elevation)
+            }
+        }
+    }
+
+    /// How the ground rises and falls along the route, with a line that follows
+    /// the slider (drag on the graph to move it too) and the climb totals.
+    private func elevationChart(_ elevation: RouteOption.Elevation) -> some View {
+        // A flat route should look flat: always show at least 30 m of height.
+        let low = Double(elevation.minM) - 4
+        let high = max(Double(elevation.maxM) + 4, low + 30)
+        let here = elevation.metres(atKm: pointerKm) ?? 0
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Elevation").font(.subheadline.weight(.semibold))
+                Text(elevation.feel(distanceKm: option.distanceKm)).font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+                Text("\(Int(here.rounded())) m here").font(.subheadline.monospacedDigit())
+            }
+            Chart {
+                ForEach(elevation.points) { point in
+                    AreaMark(x: .value("km", point.km), yStart: .value("Base", low), yEnd: .value("Height", point.metres))
+                        .foregroundStyle(LinearGradient(colors: [Theme.ink.opacity(0.22), Theme.ink.opacity(0.03)],
+                                                        startPoint: .top, endPoint: .bottom))
+                        .interpolationMethod(.monotone)
+                    LineMark(x: .value("km", point.km), y: .value("Height", point.metres))
+                        .foregroundStyle(Theme.ink)
+                        .lineStyle(StrokeStyle(lineWidth: 1.6))
+                        .interpolationMethod(.monotone)
+                }
+                RuleMark(x: .value("Here", pointerKm))
+                    .foregroundStyle(Theme.ink.opacity(0.35))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                PointMark(x: .value("Here", pointerKm), y: .value("Height", here))
+                    .foregroundStyle(Theme.ink)
+                    .symbolSize(50)
+            }
+            .chartXScale(domain: 0...max(option.distanceKm, 0.1))
+            .chartYScale(domain: low...high)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: option.distanceKm > 12 ? 2 : 1)) { value in
+                    AxisGridLine()
+                    AxisValueLabel { if let km = value.as(Double.self) { Text("\(Int(km)) km") } }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
+                    AxisGridLine()
+                    AxisValueLabel { if let m = value.as(Double.self) { Text("\(Int(m)) m") } }
+                }
+            }
+            .chartOverlay { proxy in
+                GeometryReader { geometry in
+                    Rectangle().fill(.clear).contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                            guard let plot = proxy.plotFrame else { return }
+                            let x = drag.location.x - geometry[plot].origin.x
+                            if let km: Double = proxy.value(atX: x) {
+                                pointerKm = min(max(0, km), option.distanceKm)
+                            }
+                        })
+                }
+            }
+            .frame(height: 130)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Elevation along the route")
+            .accessibilityValue("\(elevation.climbM) metres of climbing, from \(elevation.minM) to \(elevation.maxM) metres. \(Int(here.rounded())) metres at the pointer.")
+            HStack(spacing: 14) {
+                Label("\(elevation.climbM) m climb", systemImage: "arrow.up.right")
+                Label("\(elevation.descentM) m descent", systemImage: "arrow.down.right")
+                Spacer()
+                Text("\(elevation.minM) to \(elevation.maxM) m").foregroundStyle(.secondary)
+            }
+            .font(.footnote.monospacedDigit())
+            Text("Approximate, from satellite terrain data. Flyovers and bridges are not included.")
+                .font(.caption2).foregroundStyle(.secondary)
         }
     }
 

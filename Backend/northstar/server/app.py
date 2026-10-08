@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 
 from northstar import config
 from northstar.db.connection import connect
-from northstar.routing import food, walk_check
+from northstar.routing import elevation, food, walk_check
 from northstar.routing.network import StreetNetwork
 from northstar.routing.planner import Planner, google_maps_link, road_mix, steps
 from northstar.server.forecast import INDIA, ForecastCache, best_start
@@ -188,6 +188,7 @@ def describe(planner: Planner, forecast: ForecastCache, option, shape: list, exp
         "steps": [{**s, "km_from": round(s["km_from"], 3), "km": round(s["km"], 3), "pm25": round(s["pm25"], 1)}
                   for s in steps(planner, option, exposure)],
         "by_hour": by_hour,
+        "elevation": elevation.profile(planner.net, option.nodes, option.edges),
         "best_start": best_start(by_hour),
         "walk_check": {"checked": check.checked, "walkable": check.walkable,
                        "google_distance_ratio": check.ratio, "overlap": check.overlap, "note": check.note},

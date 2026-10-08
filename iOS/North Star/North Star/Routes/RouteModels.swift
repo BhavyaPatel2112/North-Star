@@ -49,6 +49,8 @@ struct RouteOption: Decodable, Identifiable {
     let byHour: [HourValue]
     /// The cleanest time to start between 5 am and 10 pm.
     let bestStart: HourValue?
+    /// How high the ground is along the route (nil from older servers).
+    let elevation: Elevation?
     let walkCheck: WalkCheck
     let googleMapsLink: URL?
 
@@ -71,6 +73,64 @@ struct RouteOption: Decodable, Identifiable {
         var id: Date { time }
     }
 
+    /// The ground along the route: height (m) at distances from the start (km),
+    /// smoothed, with the total climb and descent and the lowest and highest points.
+    struct Elevation: Decodable {
+        struct Point: Identifiable {
+            let km: Double
+            let metres: Double
+            var id: Double { km }
+        }
+
+        let points: [Point]
+        let climbM: Int
+        let descentM: Int
+        let minM: Int
+        let maxM: Int
+
+        enum CodingKeys: String, CodingKey {
+            case points
+            case climbM = "climb_m"
+            case descentM = "descent_m"
+            case minM = "min_m"
+            case maxM = "max_m"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            // Points arrive as [[km, metres], ...].
+            points = try c.decode([[Double]].self, forKey: .points).compactMap { pair in
+                pair.count == 2 ? Point(km: pair[0], metres: pair[1]) : nil
+            }
+            climbM = try c.decode(Int.self, forKey: .climbM)
+            descentM = try c.decode(Int.self, forKey: .descentM)
+            minM = try c.decode(Int.self, forKey: .minM)
+            maxM = try c.decode(Int.self, forKey: .maxM)
+        }
+
+        /// Height at a distance along the route (straight line between points).
+        func metres(atKm km: Double) -> Double? {
+            guard let first = points.first else { return nil }
+            guard km > first.km else { return first.metres }
+            for (a, b) in zip(points, points.dropFirst()) where km <= b.km {
+                let t = b.km > a.km ? (km - a.km) / (b.km - a.km) : 0
+                return a.metres + (b.metres - a.metres) * t
+            }
+            return points.last?.metres
+        }
+
+        /// "Mostly flat", "Gently rolling", "Some climbing" or "Hilly", from metres climbed per km.
+        func feel(distanceKm: Double) -> String {
+            let perKm = Double(climbM) / max(distanceKm, 0.1)
+            switch perKm {
+            case ..<4: return "Mostly flat"
+            case ..<10: return "Gently rolling"
+            case ..<20: return "Some climbing"
+            default: return "Hilly"
+            }
+        }
+    }
+
     /// Whether Google's walking directions agreed the route can be walked as drawn.
     struct WalkCheck: Decodable {
         let checked: Bool
@@ -88,6 +148,7 @@ struct RouteOption: Decodable, Identifiable {
         case finishPlace = "finish_place"
         case byHour = "by_hour"
         case bestStart = "best_start"
+        case elevation
         case walkCheck = "walk_check"
         case googleMapsLink = "google_maps_link"
     }
@@ -113,6 +174,7 @@ struct RouteOption: Decodable, Identifiable {
         steps = try c.decode([RouteStep].self, forKey: .steps)
         byHour = try c.decode([HourValue].self, forKey: .byHour)
         bestStart = try c.decodeIfPresent(HourValue.self, forKey: .bestStart)
+        elevation = try c.decodeIfPresent(Elevation.self, forKey: .elevation)
         walkCheck = try c.decode(WalkCheck.self, forKey: .walkCheck)
         googleMapsLink = try c.decodeIfPresent(String.self, forKey: .googleMapsLink).flatMap(URL.init(string:))
     }
