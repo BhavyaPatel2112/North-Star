@@ -27,7 +27,12 @@ struct RouteDetailView: View {
 
                     if RouteText.finish(option) != nil || RouteText.busyWarning(option) != nil {
                         JourneyCard {
-                            if let finish = RouteText.finish(option) { Label(finish, systemImage: "fork.knife") }
+                            if let finish = RouteText.finish(option), let place = option.finishPlace {
+                                Label(finish, systemImage: place.symbol)
+                            }
+                            if let crossing = RouteText.stationCrossing(option) {
+                                Label(crossing, systemImage: "figure.walk").foregroundStyle(.secondary)
+                            }
                             if let warning = RouteText.busyWarning(option) {
                                 Label(warning, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                             }

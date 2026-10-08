@@ -28,8 +28,16 @@ final class PlannerModel {
     var finish: Place? {
         didSet { raiseDistanceToReachFinish() }
     }
-    /// One way, no finish chosen: end at a popular, well-rated restaurant or cafe.
-    var endNearFood = false
+    /// One way, no finish chosen: what kind of place to end at.
+    enum FinishNear: Hashable {
+        /// North Star picks a clean place to end.
+        case anywhere
+        /// A popular, well-rated restaurant or cafe.
+        case food
+        /// A local train, metro or monorail station, to ride home.
+        case station
+    }
+    var finishNear: FinishNear = .anywhere
     /// Nil means "now".
     var startTime: Date?
 
@@ -127,7 +135,8 @@ final class PlannerModel {
         defer { slowNotice.cancel() }
 
         var finishes: [RouteService.FinishPlace] = []
-        let wantsFood = kind == .oneWay && finish == nil && endNearFood
+        let wantsFood = kind == .oneWay && finish == nil && finishNear == .food
+        let wantsStation = kind == .oneWay && finish == nil && finishNear == .station
         if kind == .oneWay {
             if let finish, let c = finish.coordinate {
                 finishes = [.init(name: finish.name, lat: c.latitude, lon: c.longitude)]
@@ -143,7 +152,8 @@ final class PlannerModel {
         do {
             let plan = try await service.plan(start: origin, distanceKm: distanceKm, kind: kind,
                                               startTime: startTime, finishPlaces: finishes,
-                                              endNearFood: wantsFood, allowBusyRoads: allowBusyRoads)
+                                              endNearFood: wantsFood, endNearStation: wantsStation,
+                                              allowBusyRoads: allowBusyRoads)
             phase = plan.options.isEmpty ? .failed(Self.noRouteMessage(plan, finish: finish)) : .planned(plan)
         } catch let error as URLError where error.code == .timedOut {
             phase = .failed("The route planner took too long to answer. It may still be waking up; try again.")

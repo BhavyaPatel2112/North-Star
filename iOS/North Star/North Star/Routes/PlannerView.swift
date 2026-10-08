@@ -296,14 +296,27 @@ struct PlannerView: View {
             Button("Let North Star choose the finish") { model.finish = nil }
                 .font(.subheadline.weight(.medium))
         } else {
-            Toggle(isOn: $model.endNearFood) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("End near food").font(.body.weight(.medium))
-                    Text("Finish at a popular, well-rated restaurant or cafe")
-                        .font(.footnote).foregroundStyle(.secondary)
+            Text("End near").font(.body.weight(.medium))
+            HStack(spacing: 8) {
+                ForEach(Self.finishChoices, id: \.choice) { item in
+                    Chip(title: item.title, systemImage: item.symbol, selected: model.finishNear == item.choice) {
+                        withAnimation(.snappy) { model.finishNear = item.choice }
+                    }
                 }
             }
-            .tint(Theme.ink)
+            CardNote(text: Self.finishNote(model.finishNear))
+        }
+    }
+
+    private static let finishChoices: [(choice: PlannerModel.FinishNear, title: String, symbol: String?)] = [
+        (.anywhere, "Anywhere", nil), (.food, "Food", "fork.knife"), (.station, "Station", "tram.fill"),
+    ]
+
+    private static func finishNote(_ choice: PlannerModel.FinishNear) -> String {
+        switch choice {
+        case .anywhere: "North Star picks a clean place to end."
+        case .food: "Finish at a popular, well-rated restaurant or cafe."
+        case .station: "Finish at a local train, metro or monorail station and ride home."
         }
     }
 
@@ -335,7 +348,8 @@ struct PlannerView: View {
         let defaults = UserDefaults.standard
         if defaults.double(forKey: "planKm") > 0 { model.distanceKm = defaults.double(forKey: "planKm") }
         if defaults.string(forKey: "planKind") == "one_way" { model.kind = .oneWay }
-        if defaults.bool(forKey: "planFood") { model.endNearFood = true }
+        if defaults.bool(forKey: "planFood") { model.finishNear = .food }
+        if defaults.bool(forKey: "planStation") { model.finishNear = .station }
         if defaults.bool(forKey: "planBusy") { model.allowBusyRoads = true }
         if defaults.bool(forKey: "planAuto") {
             Task {

@@ -87,6 +87,9 @@ struct RouteResultsView: View {
                             Label(warning, systemImage: "exclamationmark.triangle")
                                 .font(.subheadline).foregroundStyle(.orange)
                         }
+                        if let crossing = RouteText.stationCrossing(option) {
+                            Text(crossing).font(.subheadline).foregroundStyle(.secondary)
+                        }
                         if let best = option.bestStart {
                             Text("Cleanest start \(RouteText.time(best.time)) (PM2.5 \(Int(best.pm25.rounded())))")
                                 .font(.subheadline)
@@ -150,7 +153,7 @@ struct RouteMap: View {
                 }
                 if let finish = shape.finish, !shape.option.isLoop {
                     Annotation(shape.option.finishPlace?.name ?? "Finish", coordinate: finish) {
-                        marker("flag.checkered", .black, .white)
+                        marker(shape.option.finishPlace?.symbol ?? "flag.checkered", .black, .white)
                     }
                 }
             }
@@ -203,6 +206,12 @@ enum RouteText {
             if let reviews = place.reviews { text += " (\(reviews.formatted()) reviews)" }
         }
         return text
+    }
+
+    /// Reaching a station across a highway: allowed even with busy roads off, but worth saying.
+    static func stationCrossing(_ option: RouteOption) -> String? {
+        guard option.finishCrossings > 0 else { return nil }
+        return "The station is across a highway. Use the footbridge or subway to reach it."
     }
 
     /// A warning when the route crosses a highway or uses main roads (only when the user allowed it).

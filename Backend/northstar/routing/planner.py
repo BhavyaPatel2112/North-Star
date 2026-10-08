@@ -48,6 +48,7 @@ BUSY_FACTOR = {0: 1.0, 1: 1.0, 2: 2.5, 3: 10.0}
 HIGHWAY_TOUCH_M = 150.0
 MAX_MAIN_ROAD_SHARE = 0.4  # when avoiding, drop routes with more than 40% on main roads
 MAX_FINISH_OFFSET_M = 400  # a finishing place (cafe) must be within 400 m of a street we can route to
+STATION_REACH_M = 300      # crossing a highway in the last 300 m to reach a station is allowed
 
 TOLERANCE = 0.03          # routes must be within 3% of the target distance
 REUSE_PENALTY = 4.0       # cost multiplier for streets already used earlier in a loop
@@ -192,10 +193,7 @@ class Planner:
         distance = float(lengths.sum())
         unique, counts = np.unique(edges, return_counts=True)
         repeated = float(sum(self.net.edge_length[e] * (c - 1) for e, c in zip(unique, counts) if c > 1))
-        # A crossing: the route passes through a highway junction without running along the highway.
-        crossings = sum(1 for i in range(1, len(nodes) - 1)
-                        if self.highway_node[nodes[i]] and classes[i - 1] != 3 and classes[i] != 3)
-        crossings += int(self.crosses_highway[edges].sum())  # over or under a highway
+        crossings = self._crossings(nodes, edges)
         return RouteOption(
             kind=kind, style=style, edges=edges, nodes=nodes, distance_m=distance,
             mean_pm25=float(np.average(exposure[edges], weights=lengths)) if distance else 0.0,
@@ -206,6 +204,32 @@ class Planner:
             highway_crossings=crossings,
             busy_km=float(lengths[classes >= 2].sum()) / 1000,
         )
+
+    def _crossings(self, nodes: list[int], edges: list[int]) -> int:
+        """Times a route crosses a highway: passing through a highway junction without
+        running along the highway, or going over or under one."""
+        classes = self.net.edge_class[edges]
+        crossings = sum(1 for i in range(1, len(nodes) - 1)
+                        if self.highway_node[nodes[i]] and classes[i - 1] != 3 and classes[i] != 3)
+        return crossings + int(self.crosses_highway[edges].sum())
+
+    def _finish_node(self, place: dict) -> tuple[float, int]:
+        """The junction a run to `place` ends at, and how far it is from the place.
+
+        Stations are drawn on the tracks in OpenStreetMap, and the junction
+        nearest to that point is often a lane inside the station area that
+        Google's walking directions cannot reach. So a station finish uses the
+        nearest junction on a named public street or a bigger road (as the
+        planner's own one-way finishes do); other places use the nearest junction."""
+        point = [place["lon"] * self.kx, place["lat"] * EARTH_M_PER_DEG]
+        if place.get("kind") == "station":
+            offsets, nodes = self.tree.query(point, k=40, distance_upper_bound=MAX_FINISH_OFFSET_M)
+            for offset, node in zip(offsets, nodes):
+                if np.isfinite(offset) and self.finish_ok[node]:
+                    return float(offset), int(node)
+            return float("inf"), -1
+        offset, node = self.tree.query(point)
+        return float(offset), int(node)
 
     # ---------- round trips ----------
 
@@ -294,6 +318,20 @@ class Planner:
                         found.append(self._describe(area, "one_way", style, nodes, exposure))
         return self._finalise(found, options, avoid_busy)
 
+    def street_distances(self, lat: float, lon: float, reach_m: float, places: list[dict]) -> list[float]:
+        """Shortest street distance in metres from a start to each place (inf when the
+        place is out of reach or more than MAX_FINISH_OFFSET_M from a street)."""
+        area = self.area(lat, lon, reach_m)
+        start = area.local[self.nearest_node(lat, lon)]
+        lengths, _ = area.tree(area.length * self.net.edge_penalty[area.edge_ids], start)
+        result = []
+        for place in places:
+            offset, node = self._finish_node(place)
+            local = area.local.get(node)
+            ok = offset <= MAX_FINISH_OFFSET_M and local is not None
+            result.append(float(lengths[local]) + float(offset) if ok else float("inf"))
+        return result
+
     def to_places(self, lat: float, lon: float, distance_m: float, exposure: np.ndarray,
                   places: list[dict], options: int = 3, avoid_busy: bool = True) -> list[RouteOption]:
         """One-way routes of about `distance_m` that finish at one of `places`
@@ -306,10 +344,9 @@ class Planner:
             costs_a, pred_a = area.tree(weights, start)
             lengths_a = area.lengths_along_tree(costs_a, pred_a, start)
             for place in places:
-                offset, finish_global = self.tree.query([place["lon"] * self.kx, place["lat"] * EARTH_M_PER_DEG])
+                offset, finish_global = self._finish_node(place)
                 if offset > MAX_FINISH_OFFSET_M:
                     continue  # deep inside a mall or complex, no street close enough
-                finish_global = int(finish_global)
                 if finish_global not in area.local:
                     continue
                 finish = area.local[finish_global]
@@ -334,8 +371,22 @@ class Planner:
                 if nodes:
                     option = self._describe(area, "one_way", style, nodes, exposure)
                     option.extra["place"] = place
+                    if place.get("kind") == "station":
+                        self._allow_crossing_at_station(option)
                     found.append(option)
         return self._finalise(found, options, avoid_busy)
+
+    def _allow_crossing_at_station(self, option: RouteOption) -> None:
+        """Many stations sit beside a highway (metro Lines 2A and 7 run along the Link
+        Road and the Western Express Highway), so reaching one often means crossing it,
+        usually by footbridge or subway. A crossing in the last STATION_REACH_M is not
+        held against the route; it is reported as finish_crossings so the app can say so."""
+        lengths = self.net.edge_length[option.edges].astype(np.float64)
+        from_end = np.cumsum(lengths[::-1])[::-1]          # metres left from the start of each street
+        cut = int(np.argmax(from_end <= STATION_REACH_M)) if (from_end <= STATION_REACH_M).any() else len(lengths)
+        before = self._crossings(option.nodes[: cut + 1], option.edges[:cut])
+        option.extra["finish_crossings"] = option.highway_crossings - before
+        option.highway_crossings = before
 
     # ---------- choosing and labelling ----------
 

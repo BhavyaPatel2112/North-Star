@@ -48,6 +48,7 @@ struct RouteService {
         let start_time: Date?
         let finish_places: [FinishPlace]
         let end_near_food: Bool
+        let end_near_station: Bool
         let allow_busy_roads: Bool
     }
 
@@ -83,10 +84,12 @@ struct RouteService {
     /// Plans up to 3 routes from `start`.
     /// - endNearFood: the server looks for popular, well-rated restaurants (Google);
     ///   `finishPlaces` (from Apple Maps) are its fallback if Google can't be asked.
+    /// - endNearStation: the run ends at a local train, metro or monorail station.
     /// - allowBusyRoads: false keeps routes off highways and mostly-main-road streets.
     func plan(start: CLLocationCoordinate2D, distanceKm: Double, kind: Kind,
               startTime: Date? = nil, finishPlaces: [FinishPlace] = [],
-              endNearFood: Bool = false, allowBusyRoads: Bool = false) async throws -> RoutePlan {
+              endNearFood: Bool = false, endNearStation: Bool = false,
+              allowBusyRoads: Bool = false) async throws -> RoutePlan {
         guard let base = Self.serverURL, !Self.appKey.isEmpty else { throw ServiceError.notConfigured }
         var request = URLRequest(url: base.appending(path: "v1/routes"))
         request.httpMethod = "POST"
@@ -99,7 +102,7 @@ struct RouteService {
         request.httpBody = try encoder.encode(Request(
             lat: start.latitude, lon: start.longitude, distance_km: distanceKm, kind: kind,
             start_time: startTime, finish_places: finishPlaces,
-            end_near_food: endNearFood, allow_busy_roads: allowBusyRoads))
+            end_near_food: endNearFood, end_near_station: endNearStation, allow_busy_roads: allowBusyRoads))
 
         let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0

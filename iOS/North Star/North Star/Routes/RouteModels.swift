@@ -36,6 +36,8 @@ struct RouteOption: Decodable, Identifiable {
     let mainRoadShare: Double
     /// Times the route crosses a highway (at road level, under a flyover or over a bridge).
     let highwayCrossings: Int
+    /// Highway crossings in the last few hundred metres, to reach a station (not counted above).
+    let finishCrossings: Int
     /// Kilometres along main roads and highways.
     let busyKm: Double
     /// The finish, and the named place there if the run ends at one (for example a cafe).
@@ -65,6 +67,21 @@ struct RouteOption: Decodable, Identifiable {
         /// Google rating (1 to 5) and number of reviews, when the place came from Google.
         let rating: Double?
         let reviews: Int?
+        /// "food" or "station" (nil for a finish the user chose, or from older servers).
+        let kind: String?
+        /// For stations: "train", "metro" or "monorail".
+        let mode: String?
+
+        var isStation: Bool { kind == "station" }
+        /// The symbol for this kind of finish on the map and in the route details.
+        var symbol: String {
+            switch (kind, mode) {
+            case ("station", "metro"?), ("station", "monorail"?): "lightrail.fill"
+            case ("station", _): "tram.fill"
+            case ("food", _): "fork.knife"
+            default: "flag.checkered"
+            }
+        }
     }
 
     struct HourValue: Decodable, Identifiable {
@@ -144,6 +161,7 @@ struct RouteOption: Decodable, Identifiable {
         case quietShare = "quiet_share"
         case mainRoadShare = "main_road_share"
         case highwayCrossings = "highway_crossings"
+        case finishCrossings = "finish_crossings"
         case busyKm = "busy_km"
         case finishPlace = "finish_place"
         case byHour = "by_hour"
@@ -164,6 +182,7 @@ struct RouteOption: Decodable, Identifiable {
         mainRoadShare = try c.decode(Double.self, forKey: .mainRoadShare)
         // Older servers do not send these.
         highwayCrossings = try c.decodeIfPresent(Int.self, forKey: .highwayCrossings) ?? 0
+        finishCrossings = try c.decodeIfPresent(Int.self, forKey: .finishCrossings) ?? 0
         busyKm = try c.decodeIfPresent(Double.self, forKey: .busyKm) ?? 0
         finish = try c.decode(Coordinate.self, forKey: .finish)
         finishPlace = try c.decodeIfPresent(FinishPlace.self, forKey: .finishPlace)

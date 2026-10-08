@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 
 from northstar import config
 from northstar.db.connection import connect
-from northstar.routing import elevation, food, walk_check
+from northstar.routing import elevation, food, stations, walk_check
 from northstar.routing.network import StreetNetwork
 from northstar.routing.planner import Planner, google_maps_link, road_mix, steps
 from northstar.server.forecast import INDIA, ForecastCache, best_start
@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI):
     planner = Planner(StreetNetwork.load())
     state["planner"] = planner
     state["forecast"] = ForecastCache(planner)
+    state["stations"] = stations.load()
     yield
 
 
@@ -78,6 +79,8 @@ class RouteRequest(BaseModel):
                                        description="Optional finishes, such as cafes (one way only)")
     end_near_food: bool = Field(default=False, description="End at a popular, well-rated restaurant or cafe "
                                 "(Google Places; finish_places are used if Google is unavailable)")
+    end_near_station: bool = Field(default=False, description="End at a local train, metro or monorail station, "
+                                   "to ride home (one way only)")
     allow_busy_roads: bool = Field(default=False, description="Allow highway crossings and mostly-main-road routes")
 
 
@@ -96,8 +99,10 @@ def plan_routes(request: RouteRequest) -> dict:
     south, west, north, east = config.MUMBAI_BBOX
     if not (south <= request.lat <= north and west <= request.lon <= east):
         raise HTTPException(status_code=422, detail="Start is outside the area North Star covers.")
-    if (request.finish_places or request.end_near_food) and request.kind != "one_way":
+    if (request.finish_places or request.end_near_food or request.end_near_station) and request.kind != "one_way":
         raise HTTPException(status_code=422, detail="Finishing places only work with one-way runs.")
+    if request.end_near_food and request.end_near_station:
+        raise HTTPException(status_code=422, detail="Choose either food or a station as the finish, not both.")
 
     planner: Planner = state["planner"]
     forecast: ForecastCache = state["forecast"]
@@ -111,11 +116,15 @@ def plan_routes(request: RouteRequest) -> dict:
     distance_m = request.distance_km * 1000
     places = [p.model_dump() for p in request.finish_places]
     food_source = None
-    if request.end_near_food:
+    if request.end_near_station:
+        near = stations.within_reach(state["stations"], request.lat, request.lon, distance_m)
+        street_m = planner.street_distances(request.lat, request.lon, distance_m * 1.05, near)
+        places = stations.candidates(near, street_m, distance_m)
+    elif request.end_near_food:
         with connect() as conn:
             found = food.search(conn, request.lat, request.lon, distance_m * 0.9)
         if found.places:
-            places, food_source = found.places, "google"
+            places, food_source = [{**p, "kind": "food"} for p in found.places], "google"
         else:
             food_source = f"apple ({found.source})" if places else None
 
@@ -145,12 +154,16 @@ def plan_routes(request: RouteRequest) -> dict:
 
     message = None
     if not shown:
-        if request.end_near_food and not places:
+        if request.end_near_station and not places:
+            message = "No train, metro or monorail station within reach of that distance. Try a longer distance."
+        elif request.end_near_food and not places:
             message = "No popular, well-rated places to eat found within reach. Try a longer distance."
         elif avoid and not candidates and plan(False):
             # Routes exist, but all of them cross a highway or follow main roads (planning is fast, no Google).
             message = ("Every route of that distance from here crosses a highway or runs mostly on main roads. "
                        "Turn on \"OK with highways\" to see them, or try another distance.")
+        elif request.end_near_station:
+            message = "No walkable route of that distance ends at a station here. Try a slightly different distance."
         else:
             message = "No walkable route of that distance found here. Try a slightly different start or distance."
 
@@ -180,6 +193,7 @@ def describe(planner: Planner, forecast: ForecastCache, option, shape: list, exp
         "main_road_share": round(option.main_road_share, 2),
         "repeated_share": round(option.repeated_share, 2),
         "highway_crossings": option.highway_crossings,
+        "finish_crossings": option.extra.get("finish_crossings", 0),
         "busy_km": round(option.busy_km, 2),
         "road_km": road_mix(planner, option),
         "finish": {"lat": option.finish[0], "lon": option.finish[1]},

@@ -1,0 +1,1184 @@
+[
+ {
+  "name": "Aarey",
+  "mode": "metro",
+  "lat": 19.169324,
+  "lon": 72.858792
+ },
+ {
+  "name": "Aarey JVLR",
+  "mode": "metro",
+  "lat": 19.130682,
+  "lon": 72.884293
+ },
+ {
+  "name": "Acharya Atre Chowk",
+  "mode": "metro",
+  "lat": 18.99782,
+  "lon": 72.81772
+ },
+ {
+  "name": "Acharya Atre Nagar",
+  "mode": "monorail",
+  "lat": 19.023647,
+  "lon": 72.863799
+ },
+ {
+  "name": "Airoli",
+  "mode": "train",
+  "lat": 19.158525,
+  "lon": 72.999402
+ },
+ {
+  "name": "Airport Road",
+  "mode": "metro",
+  "lat": 19.110136,
+  "lon": 72.874167
+ },
+ {
+  "name": "Akurli",
+  "mode": "metro",
+  "lat": 19.198159,
+  "lon": 72.86049
+ },
+ {
+  "name": "Ambedkar Nagar",
+  "mode": "monorail",
+  "lat": 19.001592,
+  "lon": 72.844227
+ },
+ {
+  "name": "Anand Nagar",
+  "mode": "metro",
+  "lat": 19.257209,
+  "lon": 72.866349
+ },
+ {
+  "name": "Andheri",
+  "mode": "train",
+  "lat": 19.119698,
+  "lon": 72.84642
+ },
+ {
+  "name": "Andheri (West)",
+  "mode": "metro",
+  "lat": 19.129134,
+  "lon": 72.831431
+ },
+ {
+  "name": "Andheri",
+  "mode": "metro",
+  "lat": 19.120564,
+  "lon": 72.848843
+ },
+ {
+  "name": "Antop Hill",
+  "mode": "monorail",
+  "lat": 19.03018,
+  "lon": 72.86695
+ },
+ {
+  "name": "Asalpha",
+  "mode": "metro",
+  "lat": 19.096422,
+  "lon": 72.894879
+ },
+ {
+  "name": "Azad Nagar",
+  "mode": "metro",
+  "lat": 19.12691,
+  "lon": 72.837648
+ },
+ {
+  "name": "Baman-Dongri",
+  "mode": "train",
+  "lat": 18.975158,
+  "lon": 73.024385
+ },
+ {
+  "name": "Bandra",
+  "mode": "train",
+  "lat": 19.054979,
+  "lon": 72.84022
+ },
+ {
+  "name": "Bandra Colony",
+  "mode": "metro",
+  "lat": 19.069963,
+  "lon": 72.84936
+ },
+ {
+  "name": "Bandra Kurla Complex",
+  "mode": "metro",
+  "lat": 19.060663,
+  "lon": 72.85468
+ },
+ {
+  "name": "Bandra Terminus",
+  "mode": "train",
+  "lat": 19.062681,
+  "lon": 72.841048
+ },
+ {
+  "name": "Bangur Nagar",
+  "mode": "metro",
+  "lat": 19.162472,
+  "lon": 72.834871
+ },
+ {
+  "name": "Belpada",
+  "mode": "metro",
+  "lat": 19.025273,
+  "lon": 73.054945
+ },
+ {
+  "name": "Bhakti Park",
+  "mode": "monorail",
+  "lat": 19.028972,
+  "lon": 72.877572
+ },
+ {
+  "name": "Bhandup",
+  "mode": "train",
+  "lat": 19.142757,
+  "lon": 72.937654
+ },
+ {
+  "name": "Bharat Petroleum",
+  "mode": "monorail",
+  "lat": 19.035284,
+  "lon": 72.895555
+ },
+ {
+  "name": "Bhayandar",
+  "mode": "train",
+  "lat": 19.310185,
+  "lon": 72.852699
+ },
+ {
+  "name": "Bhivandi Road",
+  "mode": "train",
+  "lat": 19.268873,
+  "lon": 73.046312
+ },
+ {
+  "name": "Borivali",
+  "mode": "train",
+  "lat": 19.229068,
+  "lon": 72.857363
+ },
+ {
+  "name": "Borivali (West)",
+  "mode": "metro",
+  "lat": 19.231392,
+  "lon": 72.840861
+ },
+ {
+  "name": "Byculla",
+  "mode": "train",
+  "lat": 18.976622,
+  "lon": 72.832794
+ },
+ {
+  "name": "CBD Belapur",
+  "mode": "train",
+  "lat": 19.019007,
+  "lon": 73.03913
+ },
+ {
+  "name": "CBD Belapur",
+  "mode": "metro",
+  "lat": 19.0206,
+  "lon": 73.040266
+ },
+ {
+  "name": "Central Park",
+  "mode": "metro",
+  "lat": 19.053613,
+  "lon": 73.075998
+ },
+ {
+  "name": "Chakala - J.B. Nagar",
+  "mode": "metro",
+  "lat": 19.112036,
+  "lon": 72.867622
+ },
+ {
+  "name": "Charni Road",
+  "mode": "train",
+  "lat": 18.951844,
+  "lon": 72.81824
+ },
+ {
+  "name": "Chembur",
+  "mode": "monorail",
+  "lat": 19.061213,
+  "lon": 72.897591
+ },
+ {
+  "name": "Chembur",
+  "mode": "train",
+  "lat": 19.062632,
+  "lon": 72.90114
+ },
+ {
+  "name": "Chembur",
+  "mode": "metro",
+  "lat": 19.05413,
+  "lon": 72.892806
+ },
+ {
+  "name": "Chhatrapati Shivaji Maharaj International Airport - T1",
+  "mode": "metro",
+  "lat": 19.093899,
+  "lon": 72.853577
+ },
+ {
+  "name": "Chhatrapati Shivaji Maharaj International Airport - T2",
+  "mode": "metro",
+  "lat": 19.102333,
+  "lon": 72.874469
+ },
+ {
+  "name": "Chhatrapati Shivaji Maharaj Terminus",
+  "mode": "metro",
+  "lat": 18.940833,
+  "lon": 72.831861
+ },
+ {
+  "name": "Chinchpokli",
+  "mode": "train",
+  "lat": 18.987198,
+  "lon": 72.832672
+ },
+ {
+  "name": "Chuna Bhatti",
+  "mode": "train",
+  "lat": 19.05177,
+  "lon": 72.869097
+ },
+ {
+  "name": "Churchgate",
+  "mode": "train",
+  "lat": 18.93548,
+  "lon": 72.827174
+ },
+ {
+  "name": "Churchgate",
+  "mode": "metro",
+  "lat": 18.931495,
+  "lon": 72.826939
+ },
+ {
+  "name": "Cotton Green",
+  "mode": "train",
+  "lat": 18.987187,
+  "lon": 72.843896
+ },
+ {
+  "name": "Cuffe Parade",
+  "mode": "metro",
+  "lat": 18.913569,
+  "lon": 72.820715
+ },
+ {
+  "name": "Currey Road",
+  "mode": "train",
+  "lat": 18.993749,
+  "lon": 72.832856
+ },
+ {
+  "name": "D. N. Nagar",
+  "mode": "metro",
+  "lat": 19.128292,
+  "lon": 72.830193
+ },
+ {
+  "name": "Dadar",
+  "mode": "train",
+  "lat": 19.017376,
+  "lon": 72.843026
+ },
+ {
+  "name": "Dadar",
+  "mode": "metro",
+  "lat": 19.023624,
+  "lon": 72.839221
+ },
+ {
+  "name": "Dadar East",
+  "mode": "monorail",
+  "lat": 19.016253,
+  "lon": 72.852227
+ },
+ {
+  "name": "Dahanukarwadi",
+  "mode": "metro",
+  "lat": 19.206231,
+  "lon": 72.834807
+ },
+ {
+  "name": "Dahisar",
+  "mode": "train",
+  "lat": 19.249357,
+  "lon": 72.85963
+ },
+ {
+  "name": "Dahisar (East)",
+  "mode": "metro",
+  "lat": 19.251733,
+  "lon": 72.867332
+ },
+ {
+  "name": "Dativali",
+  "mode": "train",
+  "lat": 19.187105,
+  "lon": 73.059181
+ },
+ {
+  "name": "Deonar",
+  "mode": "metro",
+  "lat": 19.044833,
+  "lon": 72.917495
+ },
+ {
+  "name": "Devipada",
+  "mode": "metro",
+  "lat": 19.224036,
+  "lon": 72.864325
+ },
+ {
+  "name": "Dharavi",
+  "mode": "metro",
+  "lat": 19.046261,
+  "lon": 72.849741
+ },
+ {
+  "name": "Diamond Garden",
+  "mode": "metro",
+  "lat": 19.051719,
+  "lon": 72.901838
+ },
+ {
+  "name": "Digha Gaon",
+  "mode": "train",
+  "lat": 19.180801,
+  "lon": 72.994429
+ },
+ {
+  "name": "Dindoshi",
+  "mode": "metro",
+  "lat": 19.179758,
+  "lon": 72.858298
+ },
+ {
+  "name": "Diva Junction",
+  "mode": "train",
+  "lat": 19.188756,
+  "lon": 73.041417
+ },
+ {
+  "name": "Dockyard Road",
+  "mode": "train",
+  "lat": 18.967477,
+  "lon": 72.844548
+ },
+ {
+  "name": "Dombivli",
+  "mode": "train",
+  "lat": 19.218049,
+  "lon": 73.086135
+ },
+ {
+  "name": "Dronagiri",
+  "mode": "train",
+  "lat": 18.881333,
+  "lon": 72.964731
+ },
+ {
+  "name": "Eksar",
+  "mode": "metro",
+  "lat": 19.240377,
+  "lon": 72.843446
+ },
+ {
+  "name": "Fertilizer Township",
+  "mode": "monorail",
+  "lat": 19.043878,
+  "lon": 72.893456
+ },
+ {
+  "name": "Ghansoli",
+  "mode": "train",
+  "lat": 19.116311,
+  "lon": 73.00702
+ },
+ {
+  "name": "Ghatkopar",
+  "mode": "train",
+  "lat": 19.085693,
+  "lon": 72.908367
+ },
+ {
+  "name": "Ghatkopar",
+  "mode": "metro",
+  "lat": 19.086639,
+  "lon": 72.908054
+ },
+ {
+  "name": "Girgaon",
+  "mode": "metro",
+  "lat": 18.952102,
+  "lon": 72.822206
+ },
+ {
+  "name": "Goregaon",
+  "mode": "train",
+  "lat": 19.164869,
+  "lon": 72.849549
+ },
+ {
+  "name": "Goregaon (East)",
+  "mode": "metro",
+  "lat": 19.152449,
+  "lon": 72.856597
+ },
+ {
+  "name": "Goregaon (West)",
+  "mode": "metro",
+  "lat": 19.153024,
+  "lon": 72.835666
+ },
+ {
+  "name": "Govandi",
+  "mode": "train",
+  "lat": 19.055369,
+  "lon": 72.91507
+ },
+ {
+  "name": "Grant Road",
+  "mode": "train",
+  "lat": 18.963355,
+  "lon": 72.815826
+ },
+ {
+  "name": "Grant Road",
+  "mode": "metro",
+  "lat": 18.963218,
+  "lon": 72.818044
+ },
+ {
+  "name": "Gundavali",
+  "mode": "metro",
+  "lat": 19.114512,
+  "lon": 72.855156
+ },
+ {
+  "name": "Guru Tegh Bahadur Nagar",
+  "mode": "monorail",
+  "lat": 19.036687,
+  "lon": 72.870786
+ },
+ {
+  "name": "Guru Tegh Bahadur Nagar",
+  "mode": "train",
+  "lat": 19.038005,
+  "lon": 72.864345
+ },
+ {
+  "name": "Hutatma Chowk",
+  "mode": "metro",
+  "lat": 18.934185,
+  "lon": 72.832504
+ },
+ {
+  "name": "Jagannath Shankar Sheth",
+  "mode": "metro",
+  "lat": 18.969992,
+  "lon": 72.82118
+ },
+ {
+  "name": "Jagruti Nagar",
+  "mode": "metro",
+  "lat": 19.092588,
+  "lon": 72.901842
+ },
+ {
+  "name": "Jogeshwari (East)",
+  "mode": "metro",
+  "lat": 19.142945,
+  "lon": 72.855185
+ },
+ {
+  "name": "Jogeshwari (Harbour Line)",
+  "mode": "train",
+  "lat": 19.141154,
+  "lon": 72.849421
+ },
+ {
+  "name": "Jogeshwari (Western Line)",
+  "mode": "train",
+  "lat": 19.136114,
+  "lon": 72.848936
+ },
+ {
+  "name": "Juinagar",
+  "mode": "train",
+  "lat": 19.055883,
+  "lon": 73.018252
+ },
+ {
+  "name": "Kalbadevi",
+  "mode": "metro",
+  "lat": 18.946329,
+  "lon": 72.827193
+ },
+ {
+  "name": "Kalva",
+  "mode": "train",
+  "lat": 19.195224,
+  "lon": 72.996333
+ },
+ {
+  "name": "Kaman Road",
+  "mode": "train",
+  "lat": 19.336656,
+  "lon": 72.919084
+ },
+ {
+  "name": "Kandarpada",
+  "mode": "metro",
+  "lat": 19.256634,
+  "lon": 72.850504
+ },
+ {
+  "name": "Kandivali",
+  "mode": "train",
+  "lat": 19.204114,
+  "lon": 72.851738
+ },
+ {
+  "name": "Kandivali (West)",
+  "mode": "metro",
+  "lat": 19.214004,
+  "lon": 72.837305
+ },
+ {
+  "name": "Kanjur Marg",
+  "mode": "train",
+  "lat": 19.128653,
+  "lon": 72.928039
+ },
+ {
+  "name": "Kashigaon",
+  "mode": "metro",
+  "lat": 19.277666,
+  "lon": 72.88024
+ },
+ {
+  "name": "Kendriya Vihar",
+  "mode": "metro",
+  "lat": 19.037667,
+  "lon": 73.064078
+ },
+ {
+  "name": "Khandeshwar",
+  "mode": "metro",
+  "lat": 19.00735,
+  "lon": 73.095283
+ },
+ {
+  "name": "Khar Road",
+  "mode": "train",
+  "lat": 19.068241,
+  "lon": 72.840041
+ },
+ {
+  "name": "Kharbhav",
+  "mode": "train",
+  "lat": 19.298321,
+  "lon": 72.984468
+ },
+ {
+  "name": "Khargar Village",
+  "mode": "metro",
+  "lat": 19.043109,
+  "lon": 73.0743
+ },
+ {
+  "name": "Kharghar",
+  "mode": "train",
+  "lat": 19.025841,
+  "lon": 73.0593
+ },
+ {
+  "name": "Kharkopar",
+  "mode": "train",
+  "lat": 18.9599,
+  "lon": 73.014137
+ },
+ {
+  "name": "King's Circle",
+  "mode": "train",
+  "lat": 19.031682,
+  "lon": 72.857737
+ },
+ {
+  "name": "Kopar",
+  "mode": "train",
+  "lat": 19.212423,
+  "lon": 73.078865
+ },
+ {
+  "name": "Koparkhairne",
+  "mode": "train",
+  "lat": 19.103243,
+  "lon": 73.011311
+ },
+ {
+  "name": "Kurar",
+  "mode": "metro",
+  "lat": 19.1873,
+  "lon": 72.858455
+ },
+ {
+  "name": "Kurla",
+  "mode": "train",
+  "lat": 19.06528,
+  "lon": 72.87938
+ },
+ {
+  "name": "Lokmanya Tilak Terminus",
+  "mode": "train",
+  "lat": 19.069466,
+  "lon": 72.891978
+ },
+ {
+  "name": "Lower Malad",
+  "mode": "metro",
+  "lat": 19.173098,
+  "lon": 72.83648
+ },
+ {
+  "name": "Lower Oshiwara",
+  "mode": "metro",
+  "lat": 19.140698,
+  "lon": 72.831714
+ },
+ {
+  "name": "Lower Parel",
+  "mode": "train",
+  "lat": 18.99568,
+  "lon": 72.830276
+ },
+ {
+  "name": "Lower Parel",
+  "mode": "monorail",
+  "lat": 18.99312,
+  "lon": 72.83147
+ },
+ {
+  "name": "MIDC - Andheri",
+  "mode": "metro",
+  "lat": 19.117354,
+  "lon": 72.873597
+ },
+ {
+  "name": "Magathane",
+  "mode": "metro",
+  "lat": 19.216797,
+  "lon": 72.866801
+ },
+ {
+  "name": "Mahalaxmi",
+  "mode": "train",
+  "lat": 18.98252,
+  "lon": 72.82422
+ },
+ {
+  "name": "Mahalaxmi",
+  "mode": "metro",
+  "lat": 18.979467,
+  "lon": 72.825401
+ },
+ {
+  "name": "Mahim Junction",
+  "mode": "train",
+  "lat": 19.040663,
+  "lon": 72.846604
+ },
+ {
+  "name": "Malad",
+  "mode": "train",
+  "lat": 19.186719,
+  "lon": 72.848588
+ },
+ {
+  "name": "Malad (West)",
+  "mode": "metro",
+  "lat": 19.185285,
+  "lon": 72.835861
+ },
+ {
+  "name": "Mandale",
+  "mode": "metro",
+  "lat": 19.049592,
+  "lon": 72.938661
+ },
+ {
+  "name": "Mandapeshwar - I.C. Colony",
+  "mode": "metro",
+  "lat": 19.249586,
+  "lon": 72.8458
+ },
+ {
+  "name": "Mankhurd",
+  "mode": "train",
+  "lat": 19.048209,
+  "lon": 72.931714
+ },
+ {
+  "name": "Mankhurd",
+  "mode": "metro",
+  "lat": 19.049217,
+  "lon": 72.931231
+ },
+ {
+  "name": "Mansarovar",
+  "mode": "metro",
+  "lat": 19.016434,
+  "lon": 73.080655
+ },
+ {
+  "name": "Marine Lines",
+  "mode": "train",
+  "lat": 18.945764,
+  "lon": 72.823719
+ },
+ {
+  "name": "Marol Naka",
+  "mode": "metro",
+  "lat": 19.108504,
+  "lon": 72.878578
+ },
+ {
+  "name": "Masjid",
+  "mode": "train",
+  "lat": 18.952295,
+  "lon": 72.838177
+ },
+ {
+  "name": "Matunga",
+  "mode": "train",
+  "lat": 19.027436,
+  "lon": 72.850147
+ },
+ {
+  "name": "Matunga Road",
+  "mode": "train",
+  "lat": 19.027815,
+  "lon": 72.846681
+ },
+ {
+  "name": "Mint Colony",
+  "mode": "monorail",
+  "lat": 18.994514,
+  "lon": 72.843309
+ },
+ {
+  "name": "Mira Road",
+  "mode": "train",
+  "lat": 19.281697,
+  "lon": 72.856068
+ },
+ {
+  "name": "Miragaon",
+  "mode": "metro",
+  "lat": 19.271007,
+  "lon": 72.880698
+ },
+ {
+  "name": "Mogra",
+  "mode": "metro",
+  "lat": 19.128436,
+  "lon": 72.855456
+ },
+ {
+  "name": "Mulund",
+  "mode": "train",
+  "lat": 19.172137,
+  "lon": 72.956697
+ },
+ {
+  "name": "Mumbai CSMT",
+  "mode": "train",
+  "lat": 18.940493,
+  "lon": 72.835786
+ },
+ {
+  "name": "Mumbai Central",
+  "mode": "train",
+  "lat": 18.969585,
+  "lon": 72.819315
+ },
+ {
+  "name": "Mumbra",
+  "mode": "train",
+  "lat": 19.189943,
+  "lon": 73.023075
+ },
+ {
+  "name": "Mysore Colony",
+  "mode": "monorail",
+  "lat": 19.027717,
+  "lon": 72.89144
+ },
+ {
+  "name": "Nahur",
+  "mode": "train",
+  "lat": 19.15464,
+  "lon": 72.946652
+ },
+ {
+  "name": "Naigaon",
+  "mode": "monorail",
+  "lat": 19.009539,
+  "lon": 72.847871
+ },
+ {
+  "name": "Nerul",
+  "mode": "train",
+  "lat": 19.033584,
+  "lon": 73.018159
+ },
+ {
+  "name": "Nhava Sheva",
+  "mode": "train",
+  "lat": 18.898061,
+  "lon": 72.987797
+ },
+ {
+  "name": "Nilaje",
+  "mode": "train",
+  "lat": 19.154427,
+  "lon": 73.08036
+ },
+ {
+  "name": "Oshiwara",
+  "mode": "metro",
+  "lat": 19.146035,
+  "lon": 72.833952
+ },
+ {
+  "name": "Ovaripada",
+  "mode": "metro",
+  "lat": 19.243149,
+  "lon": 72.864138
+ },
+ {
+  "name": "Panchanand",
+  "mode": "metro",
+  "lat": 19.074542,
+  "lon": 73.090771
+ },
+ {
+  "name": "Pandurang Wadi",
+  "mode": "metro",
+  "lat": 19.259726,
+  "lon": 72.872486
+ },
+ {
+  "name": "Parel",
+  "mode": "train",
+  "lat": 19.009482,
+  "lon": 72.837661
+ },
+ {
+  "name": "Pendhar",
+  "mode": "metro",
+  "lat": 19.072212,
+  "lon": 73.097844
+ },
+ {
+  "name": "Pethpada",
+  "mode": "metro",
+  "lat": 19.063821,
+  "lon": 73.077365
+ },
+ {
+  "name": "Poisar",
+  "mode": "metro",
+  "lat": 19.203771,
+  "lon": 72.863323
+ },
+ {
+  "name": "Prabhadevi",
+  "mode": "train",
+  "lat": 19.007472,
+  "lon": 72.835897
+ },
+ {
+  "name": "RBI Colony",
+  "mode": "metro",
+  "lat": 19.022985,
+  "lon": 73.047943
+ },
+ {
+  "name": "Rabale",
+  "mode": "train",
+  "lat": 19.136636,
+  "lon": 73.002782
+ },
+ {
+  "name": "Ram Mandir",
+  "mode": "train",
+  "lat": 19.151023,
+  "lon": 72.850147
+ },
+ {
+  "name": "Ranjanpada",
+  "mode": "train",
+  "lat": 18.909258,
+  "lon": 73.015849
+ },
+ {
+  "name": "Rashtriya Udyan",
+  "mode": "metro",
+  "lat": 19.234614,
+  "lon": 72.863137
+ },
+ {
+  "name": "Reay Road",
+  "mode": "train",
+  "lat": 18.977551,
+  "lon": 72.844101
+ },
+ {
+  "name": "SBI-Dadar",
+  "mode": "metro",
+  "lat": 19.024655,
+  "lon": 72.839928
+ },
+ {
+  "name": "SEEPZ",
+  "mode": "metro",
+  "lat": 19.125999,
+  "lon": 72.873727
+ },
+ {
+  "name": "Sahar Road",
+  "mode": "metro",
+  "lat": 19.102196,
+  "lon": 72.865236
+ },
+ {
+  "name": "Saki Naka",
+  "mode": "metro",
+  "lat": 19.103536,
+  "lon": 72.887958
+ },
+ {
+  "name": "Sandhurst Road",
+  "mode": "train",
+  "lat": 18.960924,
+  "lon": 72.839372
+ },
+ {
+  "name": "Sanpada",
+  "mode": "train",
+  "lat": 19.065973,
+  "lon": 73.009542
+ },
+ {
+  "name": "Sant Gadge Maharaj Chowk",
+  "mode": "monorail",
+  "lat": 18.983092,
+  "lon": 72.828587
+ },
+ {
+  "name": "Santa Cruz",
+  "mode": "train",
+  "lat": 19.081522,
+  "lon": 72.841757
+ },
+ {
+  "name": "Santacruz",
+  "mode": "metro",
+  "lat": 19.079289,
+  "lon": 72.847118
+ },
+ {
+  "name": "Science Centre",
+  "mode": "metro",
+  "lat": 18.990895,
+  "lon": 72.821352
+ },
+ {
+  "name": "Seawoods",
+  "mode": "train",
+  "lat": 19.021819,
+  "lon": 73.019159
+ },
+ {
+  "name": "Sector-34",
+  "mode": "metro",
+  "lat": 19.073647,
+  "lon": 73.081814
+ },
+ {
+  "name": "Sewri",
+  "mode": "train",
+  "lat": 18.99878,
+  "lon": 72.854422
+ },
+ {
+  "name": "Shimpoli",
+  "mode": "metro",
+  "lat": 19.222833,
+  "lon": 72.840943
+ },
+ {
+  "name": "Shitala Devi Mandir",
+  "mode": "metro",
+  "lat": 19.038464,
+  "lon": 72.841965
+ },
+ {
+  "name": "Shivaji Chowk (Chembur)",
+  "mode": "metro",
+  "lat": 19.047938,
+  "lon": 72.906981
+ },
+ {
+  "name": "Siddhivinayak Temple",
+  "mode": "metro",
+  "lat": 19.015894,
+  "lon": 72.83092
+ },
+ {
+  "name": "Sion",
+  "mode": "train",
+  "lat": 19.046521,
+  "lon": 72.863283
+ },
+ {
+  "name": "Taloje Panchanand",
+  "mode": "train",
+  "lat": 19.079148,
+  "lon": 73.087858
+ },
+ {
+  "name": "Targhar",
+  "mode": "train",
+  "lat": 18.989952,
+  "lon": 73.034316
+ },
+ {
+  "name": "Thakurli",
+  "mode": "train",
+  "lat": 19.226281,
+  "lon": 73.098017
+ },
+ {
+  "name": "Thane",
+  "mode": "train",
+  "lat": 19.186483,
+  "lon": 72.975766
+ },
+ {
+  "name": "Tilak Nagar",
+  "mode": "train",
+  "lat": 19.065786,
+  "lon": 72.89047
+ },
+ {
+  "name": "Turbhe",
+  "mode": "train",
+  "lat": 19.076137,
+  "lon": 73.017723
+ },
+ {
+  "name": "Utsav Chowk",
+  "mode": "metro",
+  "lat": 19.032618,
+  "lon": 73.059025
+ },
+ {
+  "name": "VNP & RC Marg Junction",
+  "mode": "monorail",
+  "lat": 19.052642,
+  "lon": 72.894279
+ },
+ {
+  "name": "Vadala Road",
+  "mode": "train",
+  "lat": 19.016142,
+  "lon": 72.858932
+ },
+ {
+  "name": "Valnai-Meeth Chowky",
+  "mode": "metro",
+  "lat": 19.196829,
+  "lon": 72.833775
+ },
+ {
+  "name": "Vashi",
+  "mode": "train",
+  "lat": 19.063278,
+  "lon": 72.998792
+ },
+ {
+  "name": "Versova",
+  "mode": "metro",
+  "lat": 19.130252,
+  "lon": 72.821378
+ },
+ {
+  "name": "Vidhan Bhavan",
+  "mode": "metro",
+  "lat": 18.924781,
+  "lon": 72.825493
+ },
+ {
+  "name": "Vidyavihar",
+  "mode": "train",
+  "lat": 19.079542,
+  "lon": 72.897117
+ },
+ {
+  "name": "Vikhroli",
+  "mode": "train",
+  "lat": 19.111479,
+  "lon": 72.928021
+ },
+ {
+  "name": "Vile Parle",
+  "mode": "train",
+  "lat": 19.09991,
+  "lon": 72.844004
+ },
+ {
+  "name": "Wadala Bridge",
+  "mode": "monorail",
+  "lat": 19.017485,
+  "lon": 72.859317
+ },
+ {
+  "name": "Wadala Depot",
+  "mode": "monorail",
+  "lat": 19.038824,
+  "lon": 72.874025
+ },
+ {
+  "name": "Western Express Highway",
+  "mode": "metro",
+  "lat": 19.115863,
+  "lon": 72.856425
+ },
+ {
+  "name": "Worli",
+  "mode": "metro",
+  "lat": 19.008606,
+  "lon": 72.819274
+ }
+]

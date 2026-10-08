@@ -45,6 +45,8 @@ Backend/data/*
 Backend/data/processed/*
 # ...except the compact street network the route planner needs (about 3 MB).
 !Backend/data/processed/street_network.npz
+# ...and the station list for "End near a station" (about 20 KB).
+!Backend/data/processed/stations.json
 *.parquet
 *.csv.gz
 *.pkl
@@ -55,3 +57,6 @@ Backend/data/processed/*
 # ---------- Editors ----------
 .vscode/
 .idea/
+
+# OSMnx download cache
+Backend/cache/
