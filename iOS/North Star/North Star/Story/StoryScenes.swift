@@ -444,18 +444,21 @@ private struct Flag: View {
 struct ClimbScene: View {
     @Binding var ready: Bool
     @State private var start = Date.now
+    /// Your goal once set; before that, 500 km as an example.
+    @AppStorage(JourneyGoal.kmKey) private var goal: Double = 0
+    private var shownGoal: Double { goal > 0 ? goal : 500 }
 
     var body: some View {
         TimelineView(.animation) { context in
             let elapsed = context.date.timeIntervalSince(start)
             let share = min(1, max(0, (elapsed - 0.6) / 5.5))
-            let km = 300 * share * share * (3 - 2 * share)
+            let km = shownGoal * share * share * (3 - 2 * share)
             StoryStage { size in
-                JourneyMap(kilometres: km, size: size, compact: true, walking: share < 1)
+                JourneyMap(kilometres: km, goal: shownGoal, size: size, compact: true, walking: share < 1)
             } words: {
                 StoryCaption(first: "Every run moves you forward.",
                              second: "Your journey keeps count, from the plains to the summit.",
-                             hint: "\(Int(km)) of 300 km")
+                             hint: "\(Int(km).formatted()) of \(Int(shownGoal).formatted()) km")
             }
             .onChange(of: share >= 1) { _, done in if done { ready = true } }
         }

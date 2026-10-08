@@ -209,7 +209,7 @@ struct SkyScreen: View {
             }
             Spacer(minLength: 0)
             VStack(spacing: 3) {
-                Text("north star")
+                Text("North Star")
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                 Text("Keep going.")
                     .font(.subheadline.weight(.medium))

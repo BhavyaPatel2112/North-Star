@@ -73,7 +73,7 @@ struct LaunchStar: View {
     /// The wordmark and the two buttons.
     private var choices: some View {
         VStack(spacing: 14) {
-            Text("north star")
+            Text("North Star")
                 .font(.system(size: 30, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
             Text("Keep going.")
