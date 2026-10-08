@@ -184,6 +184,9 @@ struct RouteMap: View {
 enum RouteText {
     static func summary(_ option: RouteOption) -> String {
         var parts = [option.label]
+        if let elevation = option.elevation {
+            parts.append(elevation.climbM < 5 ? "flat" : "\(elevation.climbM) m climb")
+        }
         if let pct = option.cleanerThanDirectPct, pct >= 2 {
             parts.append("\(pct)% cleaner than the plain route")
         }

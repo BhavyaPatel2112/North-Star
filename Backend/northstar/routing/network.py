@@ -61,6 +61,9 @@ class StreetNetwork:
     edge_name: np.ndarray      # int32 index into `names`, -1 when the street has no name
     names: np.ndarray          # unicode strings, each street name once
     edge_penalty: np.ndarray   # float32 route-cost multiplier for streets runners should avoid
+    # float32 height above sea level of each junction in metres (NASA SRTM 30 m terrain via
+    # OpenTopoData; added by scripts.add_elevation). None in files made before elevation existed.
+    node_elev: np.ndarray | None = None
 
     def street_name(self, edge: int) -> str:
         index = int(self.edge_name[edge])
@@ -71,7 +74,7 @@ class StreetNetwork:
 
     def save(self, path: Path = NETWORK_FILE) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(path, **self.__dict__)
+        np.savez_compressed(path, **{k: v for k, v in self.__dict__.items() if v is not None})
 
     @classmethod
     def load(cls, path: Path = NETWORK_FILE) -> "StreetNetwork":
