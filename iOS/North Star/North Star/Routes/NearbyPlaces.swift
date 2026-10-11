@@ -6,7 +6,8 @@ import MapKit
 /// - food finishes (fallback): the server normally picks well-rated restaurants
 ///   from Google; these Apple Maps places are sent along in case Google can't be
 ///   asked, preferring well-known chains with consistent hygiene standards;
-/// - help along the way: medical stores, shops for water and clinics near the route.
+/// - help along the way: medical stores, shops for water and clinics near the route;
+/// - after the run: places to eat and stations a short walk from the finish.
 ///
 /// Apple Maps does not always know opening hours, so the app says "check it is open".
 enum NearbyPlaces {
@@ -41,6 +42,97 @@ enum NearbyPlaces {
         let coordinate: CLLocationCoordinate2D
         let offRouteM: Double
         let atKm: Double
+    }
+
+    /// Somewhere to go once the run is over, with the walk there from the finish.
+    struct Destination: Identifiable {
+        enum Kind {
+            case food, station
+
+            var symbol: String { self == .food ? "fork.knife" : "tram.fill" }
+        }
+
+        let id = UUID()
+        let kind: Kind
+        let name: String
+        let item: MKMapItem
+        /// Walking distance (metres) and time (seconds) from the finish, from Apple Maps.
+        let walkM: Double
+        let walkSeconds: Double
+
+        var coordinate: CLLocationCoordinate2D { item.placemark.coordinate }
+    }
+
+    // MARK: - After the run
+
+    /// Places to eat and stations close to where the run ends, nearest walk first.
+    ///
+    /// Food: cafes, restaurants and bakeries within 400 m (well-known chains first,
+    /// up to 6). Stations: train, metro and monorail stations within 400 m, or
+    /// within 1 km if none is that close (up to 3). Each walk is measured by Apple
+    /// Maps along real streets, so "250 m" is what you will actually walk.
+    static func afterRun(from finish: CLLocationCoordinate2D) async -> [Destination] {
+        async let food = foodNear(finish)
+        async let stations = stationsNear(finish)
+        let candidates = await food.map { (Destination.Kind.food, $0, $0.name ?? "Restaurant") }
+            + stations.map { (Destination.Kind.station, $0, $0.name ?? "Station") }
+
+        // Ask for all the walks at once (Apple allows about 50 a minute; this is at most 9).
+        let found = await withTaskGroup(of: Destination?.self) { group in
+            for (kind, item, name) in candidates {
+                group.addTask {
+                    guard let walk = await walk(from: finish, to: item) else { return nil }
+                    return Destination(kind: kind, name: name, item: item, walkM: walk.metres, walkSeconds: walk.seconds)
+                }
+            }
+            var results: [Destination] = []
+            for await destination in group { if let destination { results.append(destination) } }
+            return results
+        }
+        return found.sorted { $0.walkM < $1.walkM }
+    }
+
+    /// Up to 6 places to eat within 400 m, well-known chains first.
+    private static func foodNear(_ point: CLLocationCoordinate2D) async -> [MKMapItem] {
+        let request = MKLocalPointsOfInterestRequest(center: point, radius: 400)
+        request.pointOfInterestFilter = MKPointOfInterestFilter(including: [.cafe, .restaurant, .bakery])
+        let items = (try? await MKLocalSearch(request: request).start().mapItems) ?? []
+        let isChain = { (item: MKMapItem) in knownChains.contains(where: (item.name ?? "").lowercased().contains) }
+        return Array((items.filter(isChain) + items.filter { !isChain($0) }).prefix(6))
+    }
+
+    /// Up to 3 train, metro or monorail stations within 400 m, widening to 1 km if none.
+    private static func stationsNear(_ point: CLLocationCoordinate2D) async -> [MKMapItem] {
+        for radius in [400.0, 1_000.0] {
+            let request = MKLocalPointsOfInterestRequest(center: point, radius: radius)
+            request.pointOfInterestFilter = MKPointOfInterestFilter(including: [.publicTransport])
+            let items = (try? await MKLocalSearch(request: request).start().mapItems) ?? []
+            // "Public transport" also covers bus stops and depots; keep rail stations only.
+            let stations = items.filter { item in
+                let name = (item.name ?? "").lowercased()
+                return !name.contains("bus") && !name.contains("depot") && !name.contains("taxi")
+            }
+            if !stations.isEmpty { return Array(stations.prefix(3)) }
+        }
+        return []
+    }
+
+    /// The walk from `start` to a place along streets, or nil if Apple Maps has none.
+    private static func walk(from start: CLLocationCoordinate2D, to item: MKMapItem) async -> (metres: Double, seconds: Double)? {
+        let request = MKDirections.Request()
+        request.source = MKMapItem(placemark: MKPlacemark(coordinate: start))
+        request.destination = item
+        request.transportType = .walking
+        guard let eta = try? await MKDirections(request: request).calculateETA() else { return nil }
+        return (eta.distance, eta.expectedTravelTime)
+    }
+
+    /// Opens Apple Maps with walking directions from the finish to a place.
+    static func openWalk(from finish: CLLocationCoordinate2D, to destination: Destination) {
+        let start = MKMapItem(placemark: MKPlacemark(coordinate: finish))
+        start.name = "End of your run"
+        MKMapItem.openMaps(with: [start, destination.item],
+                           launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
     }
 
     // MARK: - Food

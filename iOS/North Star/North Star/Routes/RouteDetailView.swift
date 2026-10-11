@@ -4,22 +4,26 @@ import SwiftUI
 
 /// One route in detail: drag the pointer along it to see each street and how
 /// clean it is, the cleanest time to start, street-by-street steps, and
-/// pharmacies, water and clinics near the route.
+/// pharmacies, water and clinics near the route, and where to go after the run.
 struct RouteDetailView: View {
     let shape: RouteShape
 
     @State private var pointerKm: Double = 0
     @State private var stops: [NearbyPlaces.Stop] = []
     @State private var lookedForStops = false
+    @State private var afterRun: [NearbyPlaces.Destination] = []
+    @State private var lookedAfterRun = false
     @Environment(\.openURL) private var openURL
 
     private var option: RouteOption { shape.option }
 
     var body: some View {
         GeometryReader { geometry in
+            ScrollViewReader { scroller in
             ScrollView {
                 VStack(spacing: 14) {
-                    RouteMap(shapes: [shape], selectedID: option.id, pointer: shape.point(atKm: pointerKm), stops: stops)
+                    RouteMap(shapes: [shape], selectedID: option.id, pointer: shape.point(atKm: pointerKm), stops: stops,
+                             afterRun: afterRun)
                         .frame(height: geometry.size.height * 0.42 + geometry.safeAreaInsets.top)
                         .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 32, bottomTrailingRadius: 32, style: .continuous))
 
@@ -60,6 +64,8 @@ struct RouteDetailView: View {
                     }
                     .padding(.horizontal, 16)
 
+                    JourneyCard(title: "After your run") { afterRunList }.padding(.horizontal, 16).id("afterRun")
+
                     JourneyCard(title: "Steps") {
                         ForEach(option.steps) { step in stepRow(step) }
                         CardNote(text: "Pollution is estimated for each street at your start time.")
@@ -82,6 +88,13 @@ struct RouteDetailView: View {
             }
             .scrollIndicators(.hidden)
             .ignoresSafeArea(edges: .top)
+            #if DEBUG
+            // "-detailScrollTo afterRun" scrolls there once the places are found (for screenshots).
+            .onChange(of: lookedAfterRun) {
+                if let target = UserDefaults.standard.string(forKey: "detailScrollTo") { scroller.scrollTo(target, anchor: .top) }
+            }
+            #endif
+            }
         }
         .background(Theme.mist)
         .navigationTitle("\(PlannerModel.format(km: option.distanceKm)) \(option.isLoop ? "loop" : "one way")")
@@ -90,6 +103,18 @@ struct RouteDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         #endif
         .task {
+            // Look up places near the finish at the same time as the stops along the way.
+            if let finish = shape.finish {
+                Task {
+                    afterRun = await NearbyPlaces.afterRun(from: finish)
+                    lookedAfterRun = true
+                    #if DEBUG
+                    for place in afterRun { print("After run:", place.kind, "|", place.name, "|", Int(place.walkM), "m,", Int(place.walkSeconds / 60), "min") }
+                    #endif
+                }
+            } else {
+                lookedAfterRun = true
+            }
             stops = await NearbyPlaces.stops(along: shape)
             lookedForStops = true
             #if DEBUG
@@ -99,6 +124,62 @@ struct RouteDetailView: View {
     }
 
     // MARK: - Pieces
+
+    /// Places to eat and stations a short walk from the finish. Tap one for walking
+    /// directions in Apple Maps.
+    @ViewBuilder
+    private var afterRunList: some View {
+        let food = afterRun.filter { $0.kind == .food }
+        let stations = afterRun.filter { $0.kind == .station }
+        if afterRun.isEmpty {
+            CardNote(text: lookedAfterRun ? "Apple Maps shows no places to eat or stations near the finish."
+                                          : "Looking for food and stations near the finish…")
+        }
+        if !food.isEmpty {
+            Text("Food").font(.subheadline.weight(.semibold))
+            ForEach(food) { destinationRow($0) }
+        }
+        if !stations.isEmpty {
+            if !food.isEmpty { Divider() }
+            Text("Stations").font(.subheadline.weight(.semibold))
+            ForEach(stations) { destinationRow($0) }
+        }
+        if !afterRun.isEmpty {
+            CardNote(text: "Walks from the end of the route, from Apple Maps. Tap a place for directions. Check it is open.")
+        }
+    }
+
+    private func destinationRow(_ place: NearbyPlaces.Destination) -> some View {
+        Button {
+            if let finish = shape.finish { NearbyPlaces.openWalk(from: finish, to: place) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: place.kind.symbol)
+                    .frame(width: 30, height: 30)
+                    .background(Theme.ink.opacity(0.07), in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(place.name).font(.subheadline.weight(.medium)).lineLimit(1)
+                    Text("\(Self.walkDistance(place.walkM)) · \(Self.walkTime(place.walkSeconds)) walk")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "arrow.triangle.turn.up.right.circle")
+                    .font(.title3)
+                    .foregroundStyle(Theme.ink.opacity(0.6))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens walking directions in Apple Maps")
+    }
+
+    /// "250 m" or "1.2 km".
+    static func walkDistance(_ metres: Double) -> String {
+        metres < 1_000 ? "\(Int(metres.rounded(to: 10))) m" : String(format: "%.1f km", metres / 1_000)
+    }
+
+    /// "4 min", at least 1.
+    static func walkTime(_ seconds: Double) -> String { "\(max(1, Int((seconds / 60).rounded()))) min" }
 
     /// Drag to move a pointer along the route; shows the distance, street and air there.
     private var pointerControl: some View {

@@ -127,6 +127,8 @@ struct RouteMap: View {
     /// Optional pointer (the place you are looking at along the route).
     var pointer: CLLocationCoordinate2D?
     var stops: [NearbyPlaces.Stop] = []
+    /// Places to eat and stations near the finish (route details only).
+    var afterRun: [NearbyPlaces.Destination] = []
 
     @State private var camera: MapCameraPosition = .automatic
 
@@ -152,6 +154,11 @@ struct RouteMap: View {
                     Annotation(shape.option.finishPlace?.name ?? "Finish", coordinate: finish) {
                         marker("flag.checkered", .black, .white)
                     }
+                }
+            }
+            ForEach(afterRun) { place in
+                Annotation(place.name, coordinate: place.coordinate) {
+                    marker(place.kind.symbol, .white, Color(red: 0.55, green: 0.36, blue: 0.2))
                 }
             }
             ForEach(stops) { stop in
