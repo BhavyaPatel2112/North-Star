@@ -34,6 +34,8 @@ struct RouteOption: Decodable, Identifiable {
     /// Share of the route on quiet streets and on main roads (0 to 1).
     let quietShare: Double
     let mainRoadShare: Double
+    /// Share of the route through or beside parks and seafront promenades (0 to 1).
+    let greenShare: Double
     /// Times the route crosses a highway (at road level, under a flyover or over a bridge).
     let highwayCrossings: Int
     /// Highway crossings in the last few hundred metres, to reach a station (not counted above).
@@ -160,6 +162,7 @@ struct RouteOption: Decodable, Identifiable {
         case cleanerThanDirectPct = "cleaner_than_direct_pct"
         case quietShare = "quiet_share"
         case mainRoadShare = "main_road_share"
+        case greenShare = "green_share"
         case highwayCrossings = "highway_crossings"
         case finishCrossings = "finish_crossings"
         case busyKm = "busy_km"
@@ -180,6 +183,7 @@ struct RouteOption: Decodable, Identifiable {
         cleanerThanDirectPct = try c.decodeIfPresent(Int.self, forKey: .cleanerThanDirectPct)
         quietShare = try c.decode(Double.self, forKey: .quietShare)
         mainRoadShare = try c.decode(Double.self, forKey: .mainRoadShare)
+        greenShare = try c.decodeIfPresent(Double.self, forKey: .greenShare) ?? 0
         // Older servers do not send these.
         highwayCrossings = try c.decodeIfPresent(Int.self, forKey: .highwayCrossings) ?? 0
         finishCrossings = try c.decodeIfPresent(Int.self, forKey: .finishCrossings) ?? 0

@@ -9,6 +9,11 @@ If Google needs a much longer way round, or follows little of our line, our
 route probably uses something that cannot really be walked (a gated lane, a
 highway without a footpath, a crossing that does not exist).
 
+Long routes are checked in pieces of about 7 km (PIECE_M), each with its own
+10 points: with only 10 points on a 21 km run (one every 2 km), Google picks
+its own streets between them and its line matched barely half of ours even
+when every street was walkable. So a half marathon costs 3 requests.
+
 Every request is counted in the api_usage table. Checks stop (and routes are
 returned marked "not checked") when the daily or monthly limit is reached, so
 the bill can never run away.
@@ -33,6 +38,7 @@ DAILY_LIMIT = int(os.getenv("GOOGLE_ROUTES_DAILY_LIMIT", "900"))
 
 MAX_RATIO = 1.15     # Google may need at most 15% more distance than us
 MIN_OVERLAP = 0.80   # and must follow at least 80% of our line
+PIECE_M = 7000       # routes longer than this are checked in pieces of about this length
 
 
 @dataclass
@@ -68,6 +74,19 @@ def decode_polyline(text: str) -> list[tuple[float, float]]:
 
 def _metres(points: np.ndarray, lat0: float) -> np.ndarray:
     return np.column_stack([points[:, 1] * np.cos(np.radians(lat0)) * 111_320, points[:, 0] * 111_320])
+
+
+def pieces_of(shape: list, distance_m: float) -> list[list]:
+    """Split a route's line into pieces of about PIECE_M (one piece for shorter routes).
+    Neighbouring pieces share their end point, so together they cover the whole line."""
+    count = max(1, int(np.ceil(distance_m / PIECE_M)))
+    if count == 1 or len(shape) < 2 * count:
+        return [shape]
+    a = np.array(shape)
+    steps = np.sqrt((_metres(a[1:], float(a[:, 0].mean())) - _metres(a[:-1], float(a[:, 0].mean()))) ** 2).sum(1)
+    along = np.concatenate([[0.0], np.cumsum(steps)])
+    cuts = [0] + [int(np.searchsorted(along, along[-1] * k / count)) for k in range(1, count)] + [len(shape) - 1]
+    return [shape[cuts[k]:cuts[k + 1] + 1] for k in range(count) if cuts[k + 1] > cuts[k]]
 
 
 def overlap(ours: list, google: list, within_m: float = 25) -> float:
@@ -151,12 +170,19 @@ def check(conn, shape: list, distance_m: float) -> WalkCheck:
         return WalkCheck(checked=False, walkable=None, note="no Google key")
     if not budget_left(conn):
         return WalkCheck(checked=False, walkable=None, note="Google limit reached")
-    try:
-        google_m, line = google_walk(conn, shape)
-    except (requests.RequestException, RuntimeError) as error:
-        return WalkCheck(checked=False, walkable=None, note=str(error))
-    if not line:
-        return WalkCheck(checked=True, walkable=False, note="Google found no walking route")
+    pieces = pieces_of(shape, distance_m)
+    google_m, line = 0.0, []
+    for piece in pieces:
+        if not budget_left(conn):
+            return WalkCheck(checked=False, walkable=None, note="Google limit reached")
+        try:
+            piece_m, piece_line = google_walk(conn, piece)
+        except (requests.RequestException, RuntimeError) as error:
+            return WalkCheck(checked=False, walkable=None, note=str(error))
+        if not piece_line:
+            return WalkCheck(checked=True, walkable=False, note="Google found no walking route")
+        google_m += piece_m
+        line += piece_line
     ratio = google_m / max(distance_m, 1.0)
     share = overlap(shape, line)
     return WalkCheck(checked=True, walkable=ratio <= MAX_RATIO and share >= MIN_OVERLAP,
