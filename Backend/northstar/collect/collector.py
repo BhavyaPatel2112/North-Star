@@ -211,6 +211,11 @@ def check_waqi(conn: psycopg.Connection) -> str:
 JOBS = [update_cams, update_weather, update_openaq, firms.update_recent, refresh_events,
         google_aq.update_google, check_datagovin, check_waqi]
 
+# The forecast cannot be made without these. Every other job only improves it
+# (fires, station readings, festivals) or checks it (Google), so when one of
+# those fails the run carries on and is reported as a warning, not a failure.
+ESSENTIAL = {update_cams.__name__, update_weather.__name__}
+
 
 def run_once(conn: psycopg.Connection) -> list[str]:
     """Run every job, committing after each. A failure is reported and skipped."""
@@ -221,7 +226,8 @@ def run_once(conn: psycopg.Connection) -> list[str]:
             conn.commit()
         except Exception as error:
             conn.rollback()
-            report.append(f"{job.__name__} FAILED: {type(error).__name__}: {error}")
+            label = "FAILED" if job.__name__ in ESSENTIAL else "SKIPPED"
+            report.append(f"{job.__name__} {label}: {type(error).__name__}: {error}")
             traceback.print_exc()
     # Keep source_checks small: three months is plenty.
     conn.execute("delete from source_checks where checked_at < now() - interval '90 days'")

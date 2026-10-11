@@ -23,9 +23,12 @@ def main() -> None:
     seconds = (datetime.now(timezone.utc) - started).total_seconds()
     print(f"Done in {seconds:.0f} seconds")
 
-    # A station source being down is expected and only logged. A crash in
-    # one of our own jobs is a real problem: exit with an error so the
-    # scheduler marks the run as failed and sends an alert.
+    # An optional source being down (fires, stations, Google) is expected: show it as
+    # a warning on the GitHub run and carry on. Only a failed essential job (CAMS or
+    # weather, without which there is no forecast) fails the run and sends an alert.
+    for line in report:
+        if " SKIPPED: " in line:
+            print(f"::warning title=Collector::{line}")
     if any(" FAILED: " in line for line in report):
         sys.exit(1)
 

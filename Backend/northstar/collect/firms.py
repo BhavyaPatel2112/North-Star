@@ -35,12 +35,26 @@ MAX_DAYS_PER_REQUEST = 5  # the API refuses longer ranges
 KEEP_DAYS = 30  # recent fires kept in the database for the app
 
 
+def _get(url: str, timeout: int) -> requests.Response:
+    """GET with 3 tries on network errors (10 s, then 20 s apart): NASA's server or the
+    route to it sometimes drops for a moment. The error never includes the URL,
+    because the URL contains the secret key."""
+    for attempt in range(3):
+        try:
+            return requests.get(url, timeout=timeout)
+        except (requests.ConnectionError, requests.Timeout) as error:
+            if attempt == 2:
+                raise RuntimeError(f"FIRMS unreachable after 3 tries ({type(error).__name__})") from None
+            time.sleep(10 * (attempt + 1))
+    raise AssertionError("unreachable")
+
+
 def _area_request(source: str, day: date, days: int) -> pd.DataFrame:
     """All detections from `source` in REGION for `days` days starting `day`."""
     region = ",".join(map(str, REGION))
     url = f"{API}/area/csv/{config.FIRMS_MAP_KEY}/{source}/{region}/{days}/{day.isoformat()}"
     for attempt in range(5):
-        response = requests.get(url, timeout=120)
+        response = _get(url, timeout=120)
         if response.status_code == 429:
             time.sleep(60 * (attempt + 1))
             continue
@@ -57,7 +71,7 @@ def _area_request(source: str, day: date, days: int) -> pd.DataFrame:
 def _standard_until() -> date:
     """Last date the final ("standard") archive covers."""
     table = pd.read_csv(io.StringIO(
-        requests.get(f"{API}/data_availability/csv/{config.FIRMS_MAP_KEY}/ALL", timeout=60).text))
+        _get(f"{API}/data_availability/csv/{config.FIRMS_MAP_KEY}/ALL", timeout=60).text))
     return pd.to_datetime(table.loc[table.data_id == "VIIRS_SNPP_SP", "max_date"].iloc[0]).date()
 
 

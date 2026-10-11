@@ -30,9 +30,9 @@ jobs:
       run:
         working-directory: Backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip
@@ -53,7 +53,10 @@ jobs:
           GOOGLE_MONTHLY_LIMIT: "55000"
         run: python -m scripts.run_collector
 
+      # Runs even when the collector reported a problem: the forecast data from
+      # earlier hours is still in the database, and a fresh map beats a skipped hour.
       - name: Predict the map
+        if: ${{ !cancelled() }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python -m scripts.predict_grid
