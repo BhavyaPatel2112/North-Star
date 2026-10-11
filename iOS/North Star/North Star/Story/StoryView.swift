@@ -3,18 +3,18 @@ import SwiftUI
 /// "Why the North Star?": a short interactive story (about a minute) that tells
 /// the idea behind the app, with a tiny traveller standing in for the user.
 ///
-/// Seven scenes, each laid out like the Today screen (the picture on top with
-/// rounded corners, the words below). Each scene asks for one small action that
-/// also teaches the app: turning the sky, tapping the star, holding to walk,
-/// dragging through the hours, choosing the cleaner path. "Continue" appears once
-/// the action is done (or after 10 seconds, so nobody gets stuck).
+/// Five scenes, each laid out like the Today screen (the picture on top with
+/// rounded corners, the words below): the still star, everyone has one, the road
+/// in any weather, every run moves you forward, the summit. Each asks for one
+/// small action (turn the sky, tap the star, hold to run). "Continue" appears
+/// once the action is done (or after 10 seconds, so nobody gets stuck).
 struct StoryView: View {
     let onFinish: () -> Void
 
     @State private var scene: Int
     @State private var ready = false
 
-    static let sceneCount = 7
+    static let sceneCount = 5
 
     init(startAt scene: Int = 0, onFinish: @escaping () -> Void) {
         self.onFinish = onFinish
@@ -30,9 +30,7 @@ struct StoryView: View {
                 case 0: StillStarScene(ready: $ready)
                 case 1: YourStarScene(ready: $ready)
                 case 2: LongRoadScene(ready: $ready)
-                case 3: ThickAirScene(ready: $ready)
-                case 4: ChoosePathScene(ready: $ready)
-                case 5: ClimbScene(ready: $ready)
+                case 3: ClimbScene(ready: $ready)
                 default: SummitScene(ready: $ready)
                 }
             }
