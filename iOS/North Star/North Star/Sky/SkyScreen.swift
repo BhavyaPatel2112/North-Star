@@ -18,6 +18,10 @@ struct SkyScreen: View {
 
     @State private var model: SkyModel
     @State private var dragStart: Double?
+    /// True while the finger is on the slider itself: then the dot sits under the finger.
+    @State private var draggingTrack = false
+    /// Where the time slider's track is on screen (in the "sky" coordinate space).
+    @State private var trackFrame: CGRect = .zero
     @Environment(\.scenePhase) private var scenePhase
 
     init(place: Place, location: LocationProvider, insets: EdgeInsets, scrubbing: Binding<Bool>,
@@ -32,8 +36,15 @@ struct SkyScreen: View {
         self._model = State(initialValue: SkyModel(place: place, hoursAhead: hoursAhead))
     }
 
-    /// Points of horizontal drag per hour.
-    private let pointsPerHour: CGFloat = 14
+    /// Points of horizontal drag per hour: the track's width divided by the hours, so a
+    /// finger moving across the screen moves the dot by the same distance. (A fixed
+    /// 14 points per hour made 36 hours need about 500 points of drag on a 340-point
+    /// track, so the dot lagged behind the finger.)
+    private var pointsPerHour: CGFloat {
+        let count = model.forecast?.hours.count ?? 0
+        guard trackFrame.width > 0, count > 1 else { return 14 }
+        return trackFrame.width / CGFloat(count - 1)
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -46,6 +57,7 @@ struct SkyScreen: View {
         }
         .background(Theme.mist)
         .contentShape(Rectangle())
+        .coordinateSpace(name: "sky")
         .simultaneousGesture(scrub)
         .sensoryFeedback(.selection, trigger: model.reading?.band)
         .task { refresh() }
@@ -249,6 +261,7 @@ struct SkyScreen: View {
                 .frame(maxHeight: .infinity)
             }
             .frame(height: 16)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("sky")) } action: { trackFrame = $0 }
             Text("Drag sideways to look ahead · pull down for your places")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -274,21 +287,34 @@ struct SkyScreen: View {
     /// left to the pager (to change place); once a sideways drag starts, the pager
     /// pauses so the two never fight.
     private var scrub: some Gesture {
-        DragGesture(minimumDistance: 8)
+        DragGesture(minimumDistance: 8, coordinateSpace: .named("sky"))
             .onChanged { value in
                 guard model.status == .ready, let count = model.forecast?.hours.count else { return }
                 if dragStart == nil {
                     guard abs(value.translation.width) > abs(value.translation.height) else { return }
                     dragStart = model.position
+                    // A drag that starts on (or just around) the slider grabs the dot.
+                    draggingTrack = trackFrame.insetBy(dx: -12, dy: -22).contains(value.startLocation)
                     scrubbing = true
                 }
-                let target = dragStart! + Double(value.translation.width / pointsPerHour)
+                let target = draggingTrack
+                    ? Double((value.location.x - trackFrame.minX) / pointsPerHour)
+                    : dragStart! + Double(value.translation.width / pointsPerHour)
                 model.position = min(Double(count - 1), max(0, target))
             }
             .onEnded { value in
                 guard let start = dragStart, let count = model.forecast?.hours.count else { return }
                 dragStart = nil
                 scrubbing = false
+                if draggingTrack {
+                    // On the slider: settle on the hour under the finger, no flick.
+                    draggingTrack = false
+                    let target = Double((value.location.x - trackFrame.minX) / pointsPerHour)
+                    withAnimation(.smooth(duration: 0.25)) {
+                        model.position = min(Double(count - 1), max(0, target.rounded()))
+                    }
+                    return
+                }
                 // A quick flick carries on a little (up to 4 hours), like flicking a
                 // list, then settles on a whole hour with a soft spring.
                 let flick = (value.predictedEndTranslation.width - value.translation.width) / pointsPerHour
