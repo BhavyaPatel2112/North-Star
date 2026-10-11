@@ -88,6 +88,15 @@ struct SkyPager: View {
             .scrollPosition(id: $selection)
             .scrollIndicators(.hidden)
             .scrollDisabled(scrubbing)
+            // Pulling down past the first place, or up past the last one, opens your places
+            // (to switch, add or search), so the gesture always does something.
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                let offset = geometry.contentOffset.y + geometry.contentInsets.top
+                let bottom = geometry.contentSize.height - geometry.containerSize.height + geometry.contentInsets.top
+                return offset < 0 ? offset : max(0, offset - max(0, bottom))
+            } action: { _, pull in
+                if abs(pull) > 70, !showingPlaces, !scrubbing { showingPlaces = true }
+            }
             .ignoresSafeArea()
             .overlay(alignment: .trailing) { pageDots }
         }

@@ -136,13 +136,18 @@ struct SkyScreen: View {
         .contentTransition(.opacity)
     }
 
-    /// "Now · Satisfactory · PM2.5 48 · Estimated", and the Moderate warning when it applies.
+    /// "Air quality: Satisfactory", then "Now · PM2.5 48 · Estimated", and the Moderate
+    /// warning when it applies. Saying "air quality" matters: new users read
+    /// "Satisfactory" alone as a verdict on the weather or the run.
     private func caption(_ reading: HourReading) -> some View {
         VStack(spacing: 4) {
             HStack(spacing: 7) {
                 Circle().fill(reading.band.color).frame(width: 8, height: 8)
                     .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 1.5))
-                Text("\(timeLabel) · \(reading.band.name) · PM2.5 \(Int(reading.pm25Value.rounded()))")
+                Text("Air quality: \(reading.band.name)")
+            }
+            HStack(spacing: 7) {
+                Text("\(timeLabel) · PM2.5 \(Int(reading.pm25Value.rounded()))")
                 Text("ESTIMATED")
                     .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 5).padding(.vertical, 1)
@@ -244,7 +249,7 @@ struct SkyScreen: View {
                 .frame(maxHeight: .infinity)
             }
             .frame(height: 16)
-            Text("Drag the landscape to look ahead")
+            Text("Drag sideways to look ahead · pull down for your places")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if let madeAt = model.forecast?.madeAt, Date.now.timeIntervalSince(madeAt) > 3 * 3600 {

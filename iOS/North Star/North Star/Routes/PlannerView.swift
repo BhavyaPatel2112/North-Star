@@ -91,7 +91,7 @@ struct PlannerView: View {
     // MARK: - Cards
 
     private var startCard: some View {
-        JourneyCard(title: "Start") {
+        JourneyCard(title: "Starting point") {
             NavigationLink {
                 PlacePicker(title: "Start", location: location, allowsCurrent: true) { model.start = $0 }
             } label: {
@@ -124,15 +124,21 @@ struct PlannerView: View {
     private var distanceCard: some View {
         JourneyCard(title: "Distance") {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                TextField("5", text: $distanceText)
+                // The field is exactly as wide as the number in it (an invisible copy of the
+                // text sets the width), so "km" sits right after it with no gap.
+                Text(distanceText.isEmpty ? "0" : distanceText)
                     .font(.system(size: 46, weight: .light).monospacedDigit())
-                    .focused($editingDistance)
-                    .fixedSize()
-                    #if os(iOS)
-                    .keyboardType(.decimalPad)
-                    #endif
-                    .onSubmit(applyTypedDistance)
-                    .accessibilityLabel("Distance in kilometres")
+                    .hidden()
+                    .overlay(alignment: .leading) {
+                        TextField("5", text: $distanceText)
+                            .font(.system(size: 46, weight: .light).monospacedDigit())
+                            .focused($editingDistance)
+                            #if os(iOS)
+                            .keyboardType(.decimalPad)
+                            #endif
+                            .onSubmit(applyTypedDistance)
+                            .accessibilityLabel("Distance in kilometres")
+                    }
                 Text("km").font(.system(size: 30, weight: .light)).foregroundStyle(.secondary)
                 Spacer()
                 if editingDistance {
@@ -142,6 +148,11 @@ struct PlannerView: View {
             }
             .contentShape(Rectangle())
             .onTapGesture { editingDistance = true }
+            if !editingDistance {
+                Label("Tap the number to type any distance", systemImage: "pencil")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             HStack(spacing: 8) {
                 ForEach(PlannerModel.quickDistances, id: \.self) { km in
                     Chip(title: PlannerModel.format(km: km), selected: model.distanceKm == km) {
