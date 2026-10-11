@@ -139,12 +139,17 @@ struct SkyScreen: View {
     private func bigWords(_ first: String, _ second: String) -> some View {
         VStack(spacing: 0) {
             Text(first)
-            Text(second).opacity(0.6)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            // The advice line may wrap onto a second line, so longer advice such as
+            // "Stay indoors. Air quality is dangerous." is never cut off.
+            Text(second)
+                .opacity(0.6)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
         }
         .font(.system(size: 42, weight: .regular))
         .multilineTextAlignment(.center)
-        .lineLimit(1)
-        .minimumScaleFactor(0.6)
         .contentTransition(.opacity)
     }
 
