@@ -135,7 +135,7 @@ struct YourStarScene: View {
         } words: {
             if linked {
                 StoryCaption(first: "Everyone has one.",
-                             second: "The person you are walking towards: stronger, healthier, calmer.")
+                             second: "The runner you are becoming: stronger, healthier, calmer.")
             } else {
                 StoryCaption(first: "Everyone has one.", second: "A North Star of their own.", hint: "Tap the star")
             }
@@ -148,7 +148,7 @@ private func travellerSpot(in size: CGSize) -> CGPoint {
     CGPoint(x: size.width * 0.27, y: size.height * Ridge.shore.y(at: 0.27) - 15)
 }
 
-// MARK: - 3. The long road
+// MARK: - 3. The road, in any weather
 
 /// A vast snowfield at dusk with blowing snow. Press and hold to walk: the
 /// traveller walks, marker poles and drifts slide past, and the distance grows.
@@ -163,10 +163,11 @@ struct LongRoadScene: View {
             TimelineView(.animation) { context in
                 let t = context.date.timeIntervalSince(startedTime)
                 let scroll = walked * 70
+                let weather = Weather.at(walked)
                 ZStack {
-                    LinearGradient(colors: [Color(red: 0.08, green: 0.11, blue: 0.22), Color(red: 0.42, green: 0.47, blue: 0.60)],
-                                   startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.64))
-                    Canvas { ctx, s in drawRoad(ctx: &ctx, size: s, scroll: scroll, time: t) }
+                    LinearGradient(colors: weather.sky, startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.64))
+                        .animation(.easeInOut(duration: 1.2), value: weather)
+                    Canvas { ctx, s in drawRoad(ctx: &ctx, size: s, scroll: scroll, time: t, weather: weather) }
                     TinyTraveller(walking: holding, colour: Color(red: 0.10, green: 0.13, blue: 0.20), height: 40)
                         .position(x: size.width * 0.42, y: size.height * 0.64 - 18)
                 }
@@ -183,23 +184,59 @@ struct LongRoadScene: View {
                     let now = Date.now
                     walked += now.timeIntervalSince(last)
                     last = now
-                    if walked > 2.5 && !ready { ready = true }
+                    if walked > Self.weatherSeconds * 3 && !ready { ready = true }
                 }
             }
             .sensoryFeedback(.impact(weight: .light), trigger: Int(walked * 2))
         } words: {
             let km = String(format: "%.1f km", walked * 0.12)
-            if walked > 2.5 {
-                StoryCaption(first: "Some days you cover ground.", second: "Some days you don't. Keep going.", hint: km)
+            if walked > Self.weatherSeconds * 3 {
+                StoryCaption(first: "Heat, rain, haze or cold.",
+                             second: "North Star finds the best way for today: the route, the time, the stops.", hint: km)
             } else {
-                StoryCaption(first: "The road is long,", second: "and often lonely.",
-                             hint: walked > 0 ? km : "Press and hold to walk")
+                StoryCaption(first: "The road is long,", second: "and the weather never asks first.",
+                             hint: walked > 0 ? "\(Weather.at(walked).name) · \(km)" : "Press and hold to run")
             }
         }
     }
 
-    /// The far hills, the snow, drifts and marker poles sliding past, and blowing snow.
-    private func drawRoad(ctx: inout GraphicsContext, size: CGSize, scroll: Double, time t: Double) {
+    /// Seconds of running in each kind of weather.
+    static let weatherSeconds = 1.6
+
+    /// The weather changes as you run: snow, then rain, then heat, then haze.
+    enum Weather: Equatable {
+        case snow, rain, heat, haze
+
+        static func at(_ walked: Double) -> Weather {
+            switch Int(walked / weatherSeconds) {
+            case 0: .snow
+            case 1: .rain
+            case 2: .heat
+            default: .haze
+            }
+        }
+
+        var name: String {
+            switch self {
+            case .snow: "Cold"
+            case .rain: "Rain"
+            case .heat: "Heat"
+            case .haze: "Haze"
+            }
+        }
+
+        var sky: [Color] {
+            switch self {
+            case .snow: [Color(red: 0.08, green: 0.11, blue: 0.22), Color(red: 0.42, green: 0.47, blue: 0.60)]
+            case .rain: [Color(red: 0.10, green: 0.13, blue: 0.18), Color(red: 0.30, green: 0.36, blue: 0.44)]
+            case .heat: [Color(red: 0.55, green: 0.36, blue: 0.30), Color(red: 0.93, green: 0.70, blue: 0.48)]
+            case .haze: [Color(red: 0.42, green: 0.42, blue: 0.44), Color(red: 0.70, green: 0.69, blue: 0.66)]
+            }
+        }
+    }
+
+    /// The far hills, the ground, drifts and marker poles sliding past, and the weather.
+    private func drawRoad(ctx: inout GraphicsContext, size: CGSize, scroll: Double, time t: Double, weather: Weather) {
         let ground = size.height * 0.64
         // Far low hills.
         let hills = Ridge(seed: 19, roughness: 0.55, base: 0.645, amplitude: 0.08, peaks: [(0.7, 0.6, 0.2)])
@@ -240,7 +277,17 @@ struct LongRoadScene: View {
             ctx.fill(flag, with: .color(Theme.star))
             pole += 260
         }
-        // Blowing snow.
+        // The weather: blowing snow, falling rain, a hot sun, or a veil of haze.
+        if weather == .heat {
+            let sun = CGRect(x: size.width * 0.72, y: size.height * 0.12, width: 46, height: 46)
+            ctx.fill(Path(ellipseIn: sun.insetBy(dx: -30, dy: -30)), with: .color(Color(red: 1, green: 0.85, blue: 0.55).opacity(0.25)))
+            ctx.fill(Path(ellipseIn: sun), with: .color(Color(red: 1, green: 0.93, blue: 0.75)))
+            return
+        }
+        if weather == .haze {
+            ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(red: 0.75, green: 0.73, blue: 0.68).opacity(0.45)))
+            return
+        }
         var seed: UInt64 = 3
         func random() -> Double {
             seed = seed &* 6364136223846793005 &+ 1442695040888963407
@@ -248,6 +295,17 @@ struct LongRoadScene: View {
         }
         for _ in 0..<90 {
             let speed = 40 + random() * 70
+            if weather == .rain {
+                // Rain falls fast and nearly straight down, as short streaks.
+                let x = (random() * size.width - scroll * 0.4).truncatingRemainder(dividingBy: size.width)
+                let y = (random() * size.height + t * speed * 6).truncatingRemainder(dividingBy: size.height)
+                var streak = Path()
+                let start = CGPoint(x: x < 0 ? x + size.width : x, y: y)
+                streak.move(to: start)
+                streak.addLine(to: CGPoint(x: start.x - 2, y: start.y + 12))
+                ctx.stroke(streak, with: .color(.white.opacity(0.35)), lineWidth: 1)
+                continue
+            }
             let x = (random() * size.width - t * speed - scroll * 0.4).truncatingRemainder(dividingBy: size.width)
             let y = (random() * size.height + t * speed * 0.35).truncatingRemainder(dividingBy: size.height)
             let r = 0.8 + random() * 1.6
@@ -257,187 +315,7 @@ struct LongRoadScene: View {
     }
 }
 
-// MARK: - 4. When the air is thick
-
-/// Haze hides the star. Dragging sideways moves through the hours (the Today
-/// screen's own gesture) until the air clears and the star shines again.
-struct ThickAirScene: View {
-    @Binding var ready: Bool
-    @State private var progress: Double = 0
-    @State private var dragStart: Double?
-    @State private var cleared = false
-
-    private var pm25: Double { 150 - 138 * progress }
-
-    var body: some View {
-        StoryStage { size in
-            ZStack(alignment: .top) {
-                Landscape(palette: LandscapePalette(pm25: pm25, hourOfDay: 21.5), showsTraveller: false)
-                TinyTraveller(height: 34).position(travellerSpot(in: size))
-                timeline
-                    .padding(.horizontal, 22)
-                    .padding(.top, size.height * 0.25)
-            }
-            .contentShape(Rectangle())
-            .gesture(DragGesture()
-                .onChanged { value in
-                    if dragStart == nil { dragStart = progress }
-                    progress = min(1, max(0, dragStart! + Double(value.translation.width) / (size.width * 0.75)))
-                    if progress > 0.9, !cleared {
-                        withAnimation { cleared = true }
-                        ready = true
-                    }
-                }
-                .onEnded { _ in dragStart = nil })
-            .sensoryFeedback(.selection, trigger: AirBand(pm25: pm25))
-        } words: {
-            if cleared {
-                StoryCaption(first: "North Star shows you when the air is clear,", second: "so you go at the right time.")
-            } else {
-                StoryCaption(first: "Some days the air is thick,", second: "and the star is hard to see.",
-                             hint: "Drag sideways to look ahead")
-            }
-        }
-    }
-
-    /// The Today screen's timeline, in miniature.
-    private var timeline: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text(progress < 0.05 ? "Now" : "in \(Int((progress * 9).rounded())) h")
-                Spacer()
-                Text("\(AirBand(pm25: pm25).skyWord) · PM2.5 \(Int(pm25))")
-            }
-            .font(.footnote.weight(.semibold).monospacedDigit())
-            GeometryReader { g in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.3)).frame(height: 3)
-                    Circle().fill(.white).frame(width: 14, height: 14).offset(x: g.size.width * progress - 7)
-                }
-                .frame(maxHeight: .infinity)
-            }
-            .frame(height: 16)
-        }
-        .foregroundStyle(.white)
-        .padding(14)
-        .northGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-// MARK: - 5. Choose your path
-
-/// A map of the ice with two trails to a flag: one beside a busy, hazy road, one
-/// along the frozen lake. Tapping the clean one sends the traveller along it.
-struct ChoosePathScene: View {
-    @Binding var ready: Bool
-    @State private var walkStart: Date?
-    @State private var triedBusy = false
-    @State private var hazePulse = false
-
-    var body: some View {
-        StoryStage { size in
-            let start = CGPoint(x: size.width * 0.5, y: size.height * 0.86)
-            let end = CGPoint(x: size.width * 0.5, y: size.height * 0.13)
-            let busy = trail(from: start, to: end, c1: CGPoint(x: size.width * 0.06, y: size.height * 0.72),
-                             c2: CGPoint(x: size.width * 0.12, y: size.height * 0.3))
-            let clean = trail(from: start, to: end, c1: CGPoint(x: size.width * 0.96, y: size.height * 0.74),
-                              c2: CGPoint(x: size.width * 0.92, y: size.height * 0.28))
-            TimelineView(.animation) { context in
-                let t = context.date.timeIntervalSinceReferenceDate
-                let walk = walkStart.map { min(1, context.date.timeIntervalSince($0) / 2.8) } ?? 0
-                ZStack {
-                    LinearGradient(colors: [Color(red: 0.36, green: 0.45, blue: 0.58), Color(red: 0.22, green: 0.29, blue: 0.40)],
-                                   startPoint: .top, endPoint: .bottom)
-                    // The frozen lake the clean trail follows.
-                    Ellipse().fill(Color(red: 0.62, green: 0.74, blue: 0.84).opacity(0.7))
-                        .frame(width: size.width * 0.46, height: size.height * 0.2)
-                        .rotationEffect(.degrees(-12))
-                        .position(x: size.width * 0.64, y: size.height * 0.5)
-                    Ellipse().stroke(.white.opacity(0.5), lineWidth: 1)
-                        .frame(width: size.width * 0.46, height: size.height * 0.2)
-                        .rotationEffect(.degrees(-12))
-                        .position(x: size.width * 0.64, y: size.height * 0.5)
-                    // The busy road, with traffic and its haze.
-                    Canvas { ctx, s in drawRoad(ctx: &ctx, size: s, time: t) }
-                    RadialGradient(colors: [Color(red: 0.55, green: 0.45, blue: 0.35).opacity(hazePulse ? 0.75 : 0.5), .clear],
-                                   center: UnitPoint(x: 0.17, y: 0.5), startRadius: 0, endRadius: size.width * (hazePulse ? 0.5 : 0.36))
-                        .allowsHitTesting(false)
-                    busy.stroke(.white.opacity(0.65), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [2, 8]))
-                    clean.stroke(.white.opacity(0.65), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [2, 8]))
-                    clean.trimmedPath(from: 0, to: walk).stroke(Theme.star, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
-                    Flag().position(x: end.x + 6, y: end.y - 14)
-                    TinyTraveller(walking: walk > 0 && walk < 1, height: 30)
-                        .position(walk > 0 ? clean.trimmedPath(from: 0, to: max(0.001, walk)).currentPoint ?? start : start)
-                        .offset(y: -14)
-                }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture { location in
-                guard walkStart == nil else { return }
-                if location.x < size.width / 2 {
-                    withAnimation(.easeInOut(duration: 0.4)) { triedBusy = true; hazePulse = true }
-                    withAnimation(.easeInOut(duration: 0.8).delay(0.4)) { hazePulse = false }
-                } else {
-                    walkStart = .now
-                    Task {
-                        try? await Task.sleep(for: .seconds(2.9))
-                        ready = true
-                    }
-                }
-            }
-            .sensoryFeedback(.warning, trigger: hazePulse) { _, new in new }
-        } words: {
-            if walkStart != nil {
-                StoryCaption(first: "There is almost always", second: "a cleaner way.")
-            } else if triedBusy {
-                StoryCaption(first: "That way follows a busy road.", second: "Try the other one.", hint: "Tap a path")
-            } else {
-                StoryCaption(first: "Choose your path.", second: "Two ways across the ice.", hint: "Tap a path")
-            }
-        }
-    }
-
-    private func trail(from a: CGPoint, to b: CGPoint, c1: CGPoint, c2: CGPoint) -> Path {
-        var p = Path()
-        p.move(to: a)
-        p.addCurve(to: b, control1: c1, control2: c2)
-        return p
-    }
-
-    /// A grey road down the left side, with small cars moving along it.
-    private func drawRoad(ctx: inout GraphicsContext, size: CGSize, time t: Double) {
-        let x0 = size.width * 0.13, width = size.width * 0.09
-        ctx.fill(Path(CGRect(x: x0, y: 0, width: width, height: size.height)), with: .color(Color(red: 0.2, green: 0.22, blue: 0.26)))
-        var centre = Path()
-        centre.move(to: CGPoint(x: x0 + width / 2, y: 0))
-        centre.addLine(to: CGPoint(x: x0 + width / 2, y: size.height))
-        ctx.stroke(centre, with: .color(.white.opacity(0.4)), style: StrokeStyle(lineWidth: 1, dash: [8, 10]))
-        for i in 0..<6 {
-            let lane = i.isMultiple(of: 2)
-            let speed = lane ? 70.0 : -60.0
-            let y = (Double(i) * 97 + t * speed).truncatingRemainder(dividingBy: size.height + 40)
-            let car = CGRect(x: x0 + (lane ? width * 0.15 : width * 0.58), y: y < 0 ? y + size.height + 40 : y,
-                             width: width * 0.27, height: 13)
-            ctx.fill(Path(roundedRect: car, cornerRadius: 3), with: .color(Color(red: 0.85, green: 0.82, blue: 0.75)))
-        }
-    }
-}
-
-/// A small flag on a pole: the far shore.
-private struct Flag: View {
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            Rectangle().fill(.white).frame(width: 2, height: 30)
-            Path { p in
-                p.move(to: CGPoint(x: 2, y: 0)); p.addLine(to: CGPoint(x: 16, y: 5)); p.addLine(to: CGPoint(x: 2, y: 10))
-            }
-            .fill(Theme.star)
-        }
-        .frame(width: 18, height: 30)
-    }
-}
-
-// MARK: - 6. The climb
+// MARK: - 4. The climb
 
 /// The whole journey on one screen: the traveller walks from the plains to the
 /// summit as the kilometres add up, the trail turning gold behind them.
@@ -465,7 +343,7 @@ struct ClimbScene: View {
     }
 }
 
-// MARK: - 7. The summit
+// MARK: - 5. The summit
 
 /// The traveller on the summit under the North Star, drawn by the same shader
 /// as the opening star.
