@@ -13,6 +13,8 @@ struct RouteDetailView: View {
     @State private var lookedForStops = false
     @State private var afterRun: [NearbyPlaces.Destination] = []
     @State private var lookedAfterRun = false
+    /// The street-by-street steps start folded away, to keep the page short.
+    @State private var showingSteps = false
     @Environment(\.openURL) private var openURL
 
     private var option: RouteOption { shape.option }
@@ -71,11 +73,7 @@ struct RouteDetailView: View {
 
                     JourneyCard(title: "After your run") { afterRunList }.padding(.horizontal, 16).id("afterRun")
 
-                    JourneyCard(title: "Steps") {
-                        ForEach(option.steps) { step in stepRow(step) }
-                        CardNote(text: "Pollution is estimated for each street at your start time.")
-                    }
-                    .padding(.horizontal, 16)
+                    JourneyCard { stepsDropdown }.padding(.horizontal, 16)
 
                     if let link = option.googleMapsLink {
                         Button { openURL(link) } label: {
@@ -129,6 +127,33 @@ struct RouteDetailView: View {
     }
 
     // MARK: - Pieces
+
+    /// "Street by street" as a dropdown: one line when closed, every street when open.
+    @ViewBuilder
+    private var stepsDropdown: some View {
+        Button {
+            withAnimation(.snappy) { showingSteps.toggle() }
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Street by street").font(.headline.weight(.medium))
+                    Text("\(option.steps.count) streets").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .rotationEffect(.degrees(showingSteps ? 180 : 0))
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(showingSteps ? "Hides the streets" : "Shows every street on the route")
+        if showingSteps {
+            ForEach(option.steps) { step in stepRow(step) }
+            CardNote(text: "Pollution is estimated for each street at your start time.")
+        }
+    }
 
     /// Places to eat and stations a short walk from the finish. Tap one for walking
     /// directions in Apple Maps.
