@@ -55,3 +55,6 @@ Backend/data/processed/*
 # ---------- Editors ----------
 .vscode/
 .idea/
+
+# OSMnx download cache
+Backend/cache/
