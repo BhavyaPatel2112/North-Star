@@ -11,6 +11,9 @@ struct PlannerView: View {
     @Environment(\.openURL) private var openURL
     @State private var showResults = false
     @State private var startCamera: MapCameraPosition = .automatic
+    /// The distance as typed, kept as text while the user edits it.
+    @State private var distanceText = "5"
+    @FocusState private var editingDistance: Bool
 
     let location: LocationProvider
     /// False when the planner is a tab (nothing to close).
@@ -117,28 +120,32 @@ struct PlannerView: View {
         .padding(.horizontal, 16)
     }
 
+    /// Type any distance (1 to 30 km), or tap a common one.
     private var distanceCard: some View {
         JourneyCard(title: "Distance") {
-            HStack(alignment: .center) {
-                Text(PlannerModel.format(km: model.distanceKm))
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                TextField("5", text: $distanceText)
                     .font(.system(size: 46, weight: .light).monospacedDigit())
-                    .contentTransition(.numericText(value: model.distanceKm))
+                    .focused($editingDistance)
+                    .fixedSize()
+                    #if os(iOS)
+                    .keyboardType(.decimalPad)
+                    #endif
+                    .onSubmit(applyTypedDistance)
+                    .accessibilityLabel("Distance in kilometres")
+                Text("km").font(.system(size: 30, weight: .light)).foregroundStyle(.secondary)
                 Spacer()
-                RoundIconButton(systemImage: "minus") { step(by: -0.5) }
-                RoundIconButton(systemImage: "plus") { step(by: 0.5) }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Distance \(PlannerModel.format(km: model.distanceKm))")
-            .accessibilityAdjustableAction { direction in
-                switch direction {
-                case .increment: step(by: 0.5)
-                case .decrement: step(by: -0.5)
-                @unknown default: break
+                if editingDistance {
+                    Button("Done") { editingDistance = false }
+                        .font(.body.weight(.semibold))
                 }
             }
+            .contentShape(Rectangle())
+            .onTapGesture { editingDistance = true }
             HStack(spacing: 8) {
                 ForEach(PlannerModel.quickDistances, id: \.self) { km in
-                    Chip(title: km == 21.1 ? "Half" : PlannerModel.format(km: km), selected: model.distanceKm == km) {
+                    Chip(title: PlannerModel.format(km: km), selected: model.distanceKm == km) {
+                        editingDistance = false
                         withAnimation(.snappy) { model.distanceKm = km }
                     }
                 }
@@ -146,13 +153,25 @@ struct PlannerView: View {
             if let note = model.note { CardNote(text: note) }
         }
         .padding(.horizontal, 16)
+        // Keep the text and the model in step both ways.
+        .onChange(of: editingDistance) { if !editingDistance { applyTypedDistance() } }
+        .onChange(of: model.distanceKm, initial: true) {
+            if !editingDistance { distanceText = Self.text(km: model.distanceKm) }
+        }
     }
 
-    private func step(by km: Double) {
-        withAnimation(.snappy) {
-            model.distanceKm = min(PlannerModel.distanceRange.upperBound,
-                                   max(PlannerModel.distanceRange.lowerBound, model.distanceKm + km))
-        }
+    /// Reads the typed distance ("7", "12.5" or "12,5"), keeps it between 1 and 30 km,
+    /// rounds it to 0.1 km and shows the result.
+    private func applyTypedDistance() {
+        let typed = Double(distanceText.replacingOccurrences(of: ",", with: ".")) ?? model.distanceKm
+        let range = PlannerModel.distanceRange
+        model.distanceKm = (min(range.upperBound, max(range.lowerBound, typed)) * 10).rounded() / 10
+        distanceText = Self.text(km: model.distanceKm)
+    }
+
+    /// "5" or "21.1" (no unit; the unit is shown beside the field).
+    private static func text(km: Double) -> String {
+        km == km.rounded() ? "\(Int(km))" : String(format: "%.1f", km)
     }
 
     private var runCard: some View {
