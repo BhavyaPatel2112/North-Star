@@ -316,7 +316,7 @@ struct PlannerView: View {
         switch choice {
         case .anywhere: "North Star picks a clean place to end."
         case .food: "Finish at a popular, well-rated restaurant or cafe."
-        case .station: "Finish at a local train, metro or monorail station and ride home."
+        case .station: "Finish at a local train or metro station and ride home."
         }
     }
 

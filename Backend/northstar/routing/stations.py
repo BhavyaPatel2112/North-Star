@@ -1,6 +1,6 @@
 """Stations a one-way run can end at ("End near a station").
 
-A runner can finish at a local train, metro or monorail station and ride home,
+A runner can finish at a local train or metro station and ride home,
 which makes one-way runs practical in Mumbai. The station list is built once
 from OpenStreetMap by scripts.build_stations and saved in
 data/processed/stations.json; it is free and needs no key.
@@ -18,7 +18,7 @@ from northstar import config
 from northstar.routing.planner import TOLERANCE
 
 STATIONS_FILE = config.PROCESSED_DIR / "stations.json"
-MODE_NAMES = {"train": "station", "metro": "metro station", "monorail": "monorail station"}
+MODE_NAMES = {"train": "station", "metro": "metro station"}
 MAX_CANDIDATES = 24         # stations tried per request (each one costs a route search, about 0.1 s)
 EARTH_M_PER_DEG = 111_320.0
 

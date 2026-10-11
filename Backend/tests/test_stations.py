@@ -15,7 +15,6 @@ STATIONS = [
 def test_labels_name_the_kind_of_station():
     assert stations.label({"name": "Bandra", "mode": "train"}) == "Bandra station"
     assert stations.label({"name": "Worli", "mode": "metro"}) == "Worli metro station"
-    assert stations.label({"name": "Wadala Depot", "mode": "monorail"}) == "Wadala Depot monorail station"
     assert stations.label({"name": "Mumbai Central Station", "mode": "train"}) == "Mumbai Central Station"
 
 
@@ -42,8 +41,10 @@ def test_unreachable_stations_are_dropped():
 
 
 def test_station_list_is_built():
-    # The committed list the server loads: train, metro and monorail stations, with names.
+    # The committed list the server loads: train and metro stations only, with names.
     loaded = stations.load()
     assert len(loaded) > 150
-    assert {s["mode"] for s in loaded} == {"train", "metro", "monorail"}
+    assert {s["mode"] for s in loaded} == {"train", "metro"}
+    names = {s["name"] for s in loaded}
+    assert "Kashigaon" not in names and "Bandra Terminus" not in names  # not running / no local trains
     assert all(s["name"] and 18.8 < s["lat"] < 19.4 and 72.7 < s["lon"] < 73.2 for s in loaded)

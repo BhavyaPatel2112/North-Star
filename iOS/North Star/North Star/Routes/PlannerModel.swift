@@ -34,7 +34,7 @@ final class PlannerModel {
         case anywhere
         /// A popular, well-rated restaurant or cafe.
         case food
-        /// A local train, metro or monorail station, to ride home.
+        /// A local train or metro station, to ride home.
         case station
     }
     var finishNear: FinishNear = .anywhere

@@ -69,14 +69,14 @@ struct RouteOption: Decodable, Identifiable {
         let reviews: Int?
         /// "food" or "station" (nil for a finish the user chose, or from older servers).
         let kind: String?
-        /// For stations: "train", "metro" or "monorail".
+        /// For stations: "train" or "metro".
         let mode: String?
 
         var isStation: Bool { kind == "station" }
         /// The symbol for this kind of finish on the map and in the route details.
         var symbol: String {
             switch (kind, mode) {
-            case ("station", "metro"?), ("station", "monorail"?): "lightrail.fill"
+            case ("station", "metro"?): "lightrail.fill"
             case ("station", _): "tram.fill"
             case ("food", _): "fork.knife"
             default: "flag.checkered"

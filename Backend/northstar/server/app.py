@@ -79,7 +79,7 @@ class RouteRequest(BaseModel):
                                        description="Optional finishes, such as cafes (one way only)")
     end_near_food: bool = Field(default=False, description="End at a popular, well-rated restaurant or cafe "
                                 "(Google Places; finish_places are used if Google is unavailable)")
-    end_near_station: bool = Field(default=False, description="End at a local train, metro or monorail station, "
+    end_near_station: bool = Field(default=False, description="End at a local train or metro station, "
                                    "to ride home (one way only)")
     allow_busy_roads: bool = Field(default=False, description="Allow highway crossings and mostly-main-road routes")
 
@@ -155,7 +155,7 @@ def plan_routes(request: RouteRequest) -> dict:
     message = None
     if not shown:
         if request.end_near_station and not places:
-            message = "No train, metro or monorail station within reach of that distance. Try a longer distance."
+            message = "No train or metro station within reach of that distance. Try a longer distance."
         elif request.end_near_food and not places:
             message = "No popular, well-rated places to eat found within reach. Try a longer distance."
         elif avoid and not candidates and plan(False):

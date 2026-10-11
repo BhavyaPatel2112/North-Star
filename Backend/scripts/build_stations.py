@@ -1,10 +1,11 @@
-"""Build the list of train, metro and monorail stations a one-way run can end at.
+"""Build the list of train and metro stations a one-way run can end at.
 
 "End near a station" lets a runner finish at a station and ride home. The
 stations come from OpenStreetMap: local train stations (Western, Central,
-Harbour and Trans-Harbour lines), metro stations and monorail stations inside
-the area North Star covers. Bus stations, and stations that are only planned
-or still being built, are left out.
+Harbour, Trans-Harbour and Uran lines) and metro stations inside the area
+North Star covers. Left out: bus stations, the monorail, stations that are
+only planned or being built, and the lists below (lines not yet running, and
+stations with no local trains). Review the lists when a new line opens.
 
 OpenStreetMap often records one station several times (a point for the
 station, an outline of the building, one point per line at interchanges), so
@@ -28,16 +29,30 @@ TAGS = {"railway": ["station", "halt"], "public_transport": "station"}
 MERGE_WITHIN_M = 400
 NOT_RAIL = ("BEST", "NMMT", "MSRTC", "TMT", "MBMT", "KDMT")   # bus operators and networks
 
+# Metro stations on lines not confirmed open (Oct 2026): Line 2B (Mandale to Diamond
+# Garden and on to Chembur), Line 9 (Dahisar East to Kashigaon), and Navi Mumbai
+# stations beyond Line 1. Lines 1, 2A, 3 (Aqua), 7 and Navi Mumbai Line 1 are kept.
+METRO_NOT_RUNNING = {
+    "Mandale", "Diamond Garden", "Shivaji Chowk (Chembur)", "Chembur", "Deonar", "Mankhurd",
+    "RBI Colony", "Pandurang Wadi", "Miragaon", "Kashigaon", "Khandeshwar", "Mansarovar",
+}
+# Train stations a runner cannot ride home from: long-distance terminals (no local
+# trains) and stations on the Diva to Vasai and Diva to Panvel lines (a few trains a day).
+TRAIN_NOT_LOCAL = {
+    "Bandra Terminus", "Lokmanya Tilak Terminus", "Bhivandi Road", "Kaman Road", "Kharbhav",
+    "Nilaje", "Dativali", "Taloje Panchanand", "Targhar",
+}
+
 
 def mode_of(row: pd.Series) -> str | None:
-    """"train", "metro", "monorail", or None for anything that is not a rail station in use."""
+    """"train", "metro", or None for anything that is not a rail station in use."""
     value = lambda key: str(row[key]) if key in row and pd.notna(row[key]) else ""
     station, railway = value("station"), value("railway")
     text = f"{value('network')} {value('operator')}"
     if value("construction") or value("proposed") or railway in ("proposed", "construction"):
         return None
     if station == "monorail":
-        return "monorail"
+        return None  # the monorail is left out
     if station in ("subway", "light_rail") or "Metro" in text or "MMRC" in text:
         return "metro"
     if railway in ("station", "halt") and not any(bus in text for bus in NOT_RAIL):
@@ -72,6 +87,8 @@ def main() -> None:
         name = clean_name(str(row["name:en"] if pd.notna(row["name:en"]) else row["name"]))
         if "bus" in name.lower():
             continue  # a bus stop tagged with a metro operator
+        if (row["mode"] == "metro" and name in METRO_NOT_RUNNING) or (row["mode"] == "train" and name in TRAIN_NOT_LOCAL):
+            continue
         for station in stations:
             if (station["mode"] == row["mode"] and station["name"].lower() == name.lower()
                     and (station["x"] - row["x"]) ** 2 + (station["y"] - row["y"]) ** 2 <= MERGE_WITHIN_M ** 2):

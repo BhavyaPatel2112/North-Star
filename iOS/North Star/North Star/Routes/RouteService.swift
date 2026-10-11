@@ -84,7 +84,7 @@ struct RouteService {
     /// Plans up to 3 routes from `start`.
     /// - endNearFood: the server looks for popular, well-rated restaurants (Google);
     ///   `finishPlaces` (from Apple Maps) are its fallback if Google can't be asked.
-    /// - endNearStation: the run ends at a local train, metro or monorail station.
+    /// - endNearStation: the run ends at a local train or metro station.
     /// - allowBusyRoads: false keeps routes off highways and mostly-main-road streets.
     func plan(start: CLLocationCoordinate2D, distanceKm: Double, kind: Kind,
               startTime: Date? = nil, finishPlaces: [FinishPlace] = [],
