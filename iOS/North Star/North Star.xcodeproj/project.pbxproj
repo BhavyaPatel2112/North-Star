@@ -259,6 +259,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "NorthStar-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "North Star";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "North Star reads your running workouts to move you along your journey. It never writes to Apple Health, and your health data never leaves your phone.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "North Star does not save anything to Apple Health. It only reads your running workouts to move you along your journey.";
@@ -305,6 +306,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "NorthStar-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "North Star";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "North Star reads your running workouts to move you along your journey. It never writes to Apple Health, and your health data never leaves your phone.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "North Star does not save anything to Apple Health. It only reads your running workouts to move you along your journey.";
