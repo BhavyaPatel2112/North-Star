@@ -16,6 +16,14 @@ struct JourneyView: View {
     @AppStorage(JourneyGoal.startKey) private var start: Double = 0
     @AppStorage(JourneyGoal.whyKey) private var why: String = ""
     @State private var editingGoal = false
+    /// Where the traveller stood last time you saw the Journey, so new runs can be walked.
+    @AppStorage("journeySeenKm") private var seenKm: Double = 0
+    /// The kilometres the picture shows right now (walks up to `kilometres` after new runs).
+    @State private var shownKm: Double = 0
+    @State private var walkingUp = false
+    /// "+6.2 km since last time", shown briefly after a walk-up.
+    @State private var gainNote: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Total height of the journey picture, in points.
     private let height: CGFloat = 2300
@@ -25,14 +33,14 @@ struct JourneyView: View {
         ScrollViewReader { reader in
             ScrollView {
                 GeometryReader { geometry in
-                    JourneyMap(kilometres: kilometres, goal: safeGoal, size: CGSize(width: geometry.size.width, height: height),
-                               scheduleKm: JourneyGoal.onSchedule(goal: safeGoal, start: start), why: why)
+                    JourneyMap(kilometres: shownKm, goal: safeGoal, size: CGSize(width: geometry.size.width, height: height),
+                               scheduleKm: JourneyGoal.onSchedule(goal: safeGoal, start: start), why: why, walking: walkingUp)
                 }
                 .frame(height: height)
                 .overlay(alignment: .top) {
                     // An invisible marker at the traveller's height, to scroll to on opening.
                     VStack(spacing: 0) {
-                        Color.clear.frame(height: JourneyStage.y(atShare: kilometres / safeGoal) * height)
+                        Color.clear.frame(height: JourneyStage.y(atShare: shownKm / safeGoal) * height)
                         Color.clear.frame(height: 1).id("traveller")
                         Spacer(minLength: 0)
                     }
@@ -43,6 +51,8 @@ struct JourneyView: View {
             .ignoresSafeArea(edges: .top)
             .background(JourneyColours.plains)
             .overlay(alignment: .top) { header }
+            .overlay(alignment: .bottom) { gainBanner }
+            .sensoryFeedback(.success, trigger: stagesPassed(shownKm))
             #if os(iOS)
             .fullScreenCover(isPresented: $showingStory) { StoryView { showingStory = false } }
             .fullScreenCover(isPresented: $editingGoal) { GoalSetupView(isEditing: true) { editingGoal = false } }
@@ -51,9 +61,15 @@ struct JourneyView: View {
             .sheet(isPresented: $editingGoal) { GoalSetupView(isEditing: true) { editingGoal = false }.frame(minWidth: 420, minHeight: 760) }
             #endif
             .onAppear {
+                // Start where you were last time; new runs are then walked (see walkUp).
+                shownKm = min(seenKm, kilometres)
                 // After the first layout, so the scroll view knows its content.
-                DispatchQueue.main.async { reader.scrollTo("traveller", anchor: UnitPoint(x: 0.5, y: 0.62)) }
+                DispatchQueue.main.async {
+                    reader.scrollTo("traveller", anchor: UnitPoint(x: 0.5, y: 0.62))
+                    walkUp(reader)
+                }
             }
+            .onChange(of: kilometres) { walkUp(reader) }
             // Read new runs whenever the Journey opens or the app comes back to the front.
             .task { await RunTracker.refresh() }
             .onChange(of: scenePhase) { if scenePhase == .active { Task { await RunTracker.refresh() } } }
@@ -65,63 +81,136 @@ struct JourneyView: View {
     /// The goal, never zero (before it is set, a 500 km placeholder).
     private var safeGoal: Double { goal > 0 ? goal : 500 }
 
+    /// The header: your journey and progress in two lines with a slim bar, and a ⋯ menu
+    /// for everything else. "Connect Apple Health" sits below as one clear button until
+    /// it is connected.
     private var header: some View {
-        VStack(spacing: 4) {
-            Text("Your journey")
-                .font(.system(size: 26, weight: .regular))
-            if !why.isEmpty {
-                Text("Towards: \(why)")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.star)
-                    .lineLimit(1)
+        VStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Your journey")
+                            .font(.system(size: 24, weight: .regular))
+                        if !why.isEmpty {
+                            Text("Towards: \(why)")
+                                .font(.footnote)
+                                .foregroundStyle(Theme.star)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer()
+                    moreMenu
+                }
+                Text(progressLine)
+                    .font(.subheadline.weight(.medium))
+                ProgressView(value: min(1, kilometres / safeGoal))
+                    .tint(Theme.star)
+                Text(paceLine)
+                    .font(.caption)
+                    .opacity(0.7)
             }
-            Text(progressLine)
-                .font(.footnote.weight(.medium))
-                .opacity(0.8)
-                .multilineTextAlignment(.center)
-            Text(paceLine)
-                .font(.footnote)
-                .opacity(0.7)
-                .multilineTextAlignment(.center)
-            healthLine
-            HStack(spacing: 16) {
-                Button("Change my North Star") { editingGoal = true }
-                Button("Why the North Star?") { showingStory = true }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .northGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+
+            if RunTracker.isAvailable && !healthConnected {
+                Button {
+                    Task { await RunTracker.connect() }
+                } label: {
+                    Label("Connect Apple Health", systemImage: "heart.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .northGlass(in: Capsule())
+                .accessibilityHint("Counts your running workouts towards your North Star")
             }
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(Theme.star)
-            .buttonStyle(.plain)
-            .padding(.top, 2)
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .northGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .padding(.horizontal, 20)
         .padding(.top, 8)
     }
 
-    /// Where the kilometres come from: a button to connect Apple Health, or how many runs counted.
-    @ViewBuilder
-    private var healthLine: some View {
-        if RunTracker.isAvailable {
-            if healthConnected {
-                Text(runs == 0 ? "Apple Health: no runs since you set your North Star yet"
-                               : "From Apple Health · \(runs) run\(runs == 1 ? "" : "s")")
-                    .font(.caption)
-                    .opacity(0.6)
-            } else {
-                Button {
-                    Task { await RunTracker.connect() }
-                } label: {
-                    Label("Connect Apple Health to count your runs", systemImage: "heart.fill")
-                        .font(.footnote.weight(.semibold))
+    /// Change the goal, replay the story, and Apple Health, tucked into one round button.
+    private var moreMenu: some View {
+        Menu {
+            Button("Change my North Star", systemImage: "star") { editingGoal = true }
+            Button("Why the North Star?", systemImage: "book") { showingStory = true }
+            if RunTracker.isAvailable {
+                Section("Apple Health") {
+                    if healthConnected {
+                        Text(runs == 1 ? "1 run counted" : "\(runs) runs counted")
+                        Button("Check for new runs", systemImage: "arrow.clockwise") {
+                            Task { await RunTracker.refresh() }
+                        }
+                    } else {
+                        Button("Connect Apple Health", systemImage: "heart") {
+                            Task { await RunTracker.connect() }
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(Theme.star)
-                .padding(.top, 2)
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .northGlass(in: Circle())
+        }
+        .accessibilityLabel("More")
+    }
+
+    /// "+6.2 km since last time", floating above the tab bar for a few seconds.
+    @ViewBuilder
+    private var gainBanner: some View {
+        if let gainNote {
+            Text(gainNote)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .northGlass(in: Capsule())
+                .padding(.bottom, 110)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    /// Walks the traveller from where you were last time up to your new total, with the
+    /// gold trail filling in behind and the view following. With Reduce Motion it
+    /// simply moves there.
+    private func walkUp(_ reader: ScrollViewProxy) {
+        let gained = kilometres - shownKm
+        guard gained > 0.05 else {
+            shownKm = kilometres
+            seenKm = kilometres
+            return
+        }
+        let note = String(format: gained < 10 ? "+%.1f km since last time" : "+%.0f km since last time", gained)
+        if reduceMotion {
+            shownKm = kilometres
+            reader.scrollTo("traveller", anchor: UnitPoint(x: 0.5, y: 0.62))
+        } else {
+            // A short pause so you see where you were, then a walk of 2 to 4 seconds.
+            let seconds = min(4, max(2, gained / safeGoal * 40))
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                walkingUp = true
+                withAnimation(.easeInOut(duration: seconds)) {
+                    shownKm = kilometres
+                    reader.scrollTo("traveller", anchor: UnitPoint(x: 0.5, y: 0.62))
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { walkingUp = false }
             }
         }
+        seenKm = kilometres
+        withAnimation(.snappy) { gainNote = note }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { withAnimation(.easeOut) { gainNote = nil } }
+    }
+
+    /// How many stages you have passed (a haptic tap when the walk passes one).
+    private func stagesPassed(_ km: Double) -> Int {
+        JourneyStage.all.filter { $0.share > 0 && km >= $0.share * safeGoal }.count
     }
 
     /// "62 of 500 km · 63 km to the North Pole"
@@ -182,9 +271,7 @@ struct JourneyStage: Identifiable {
     /// Height of the traveller on the picture (0 at top, 1 at bottom).
     static func y(atShare share: Double) -> Double {
         let p = trailPosition(atShare: share)
-        let points = JourneyTrail.points
-        guard p.index < points.count - 1 else { return points[p.index].y }
-        return points[p.index].y + (points[p.index + 1].y - points[p.index].y) * p.t
+        return JourneyTrail.point(index: p.index, t: p.t, in: CGSize(width: 1, height: 1)).y
     }
 
     func label(goal: Double) -> String { share == 0 ? "Start" : "\(Int((share * goal).rounded()).formatted()) km" }
@@ -206,23 +293,42 @@ enum JourneyTrail {
         CGPoint(x: 0.50, y: 0.205),  // the summit
     ]
 
-    /// A smooth line through the points, from `start` to `end` (indices, with a share of the last segment).
+    /// The curve from point `i` to point `i + 1` (start, two control points, end), at `size`.
+    /// Controls halfway down each step keep the trail smooth.
+    private static func segment(_ i: Int, in size: CGSize) -> [CGPoint] {
+        let a = CGPoint(x: points[i].x * size.width, y: points[i].y * size.height)
+        let b = CGPoint(x: points[i + 1].x * size.width, y: points[i + 1].y * size.height)
+        let middle = a.y + (b.y - a.y) * 0.5
+        return [a, CGPoint(x: a.x, y: middle), CGPoint(x: b.x, y: middle), b]
+    }
+
+    /// Splits a curve at `t` (de Casteljau's method): the first part's four points.
+    private static func firstPart(of c: [CGPoint], at t: Double) -> [CGPoint] {
+        func mix(_ p: CGPoint, _ q: CGPoint) -> CGPoint { CGPoint(x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t) }
+        let q0 = mix(c[0], c[1]), q1 = mix(c[1], c[2]), q2 = mix(c[2], c[3])
+        let r0 = mix(q0, q1), r1 = mix(q1, q2)
+        return [c[0], q0, r0, mix(r0, r1)]
+    }
+
+    /// The exact point on the trail `t` of the way along the step after point `index`, so the
+    /// traveller stands on the dotted line rather than cutting across its bends.
+    static func point(index: Int, t: Double, in size: CGSize) -> CGPoint {
+        guard index < points.count - 1 else {
+            return CGPoint(x: points[index].x * size.width, y: points[index].y * size.height)
+        }
+        return firstPart(of: segment(index, in: size), at: t)[3]
+    }
+
+    /// The smooth trail through the points, all of it or up to `end` (a point index and a
+    /// share of the next step). The partial step follows the same curve exactly.
     static func path(in size: CGSize, upTo end: (index: Int, t: Double)? = nil) -> Path {
-        let p = points.map { CGPoint(x: $0.x * size.width, y: $0.y * size.height) }
         var path = Path()
-        path.move(to: p[0])
-        let last = end?.index ?? p.count - 1
-        for i in 0..<min(last + 1, p.count - 1) {
-            // Curves through the midpoints keep the trail smooth.
-            let a = p[i], b = p[i + 1]
-            let control1 = CGPoint(x: a.x, y: a.y + (b.y - a.y) * 0.5)
-            let control2 = CGPoint(x: b.x, y: a.y + (b.y - a.y) * 0.5)
-            if let end, i == end.index {
-                // Partial last segment: approximate with a straight piece.
-                path.addLine(to: CGPoint(x: a.x + (b.x - a.x) * end.t, y: a.y + (b.y - a.y) * end.t))
-            } else {
-                path.addCurve(to: b, control1: control1, control2: control2)
-            }
+        path.move(to: CGPoint(x: points[0].x * size.width, y: points[0].y * size.height))
+        let last = end?.index ?? points.count - 1
+        for i in 0..<min(last + 1, points.count - 1) {
+            var c = segment(i, in: size)
+            if let end, i == end.index { c = firstPart(of: c, at: end.t) }
+            path.addCurve(to: c[3], control1: c[1], control2: c[2])
         }
         return path
     }
@@ -233,17 +339,26 @@ enum JourneyTrail {
 enum JourneyColours {
     static let nightTop = Color(red: 0.02, green: 0.03, blue: 0.08)
     static let nightLow = Color(red: 0.10, green: 0.14, blue: 0.24)
-    static let twilight = Color(red: 0.42, green: 0.48, blue: 0.60)
-    static let plains = Color(red: 0.82, green: 0.86, blue: 0.91)
+    // The lower picture is dusk, not white-out, so the white labels stay readable.
+    static let twilight = Color(red: 0.25, green: 0.31, blue: 0.45)
+    static let plains = Color(red: 0.36, green: 0.43, blue: 0.56)
     static let rock = Color(red: 0.15, green: 0.19, blue: 0.27)
     static let mountainSnow = Color(red: 0.78, green: 0.83, blue: 0.91)
-    static let ice = Color(red: 0.58, green: 0.70, blue: 0.80)
+    static let ice = Color(red: 0.45, green: 0.56, blue: 0.68)
     static let trail = Color.white.opacity(0.7)
 }
 
 /// The whole journey drawn at a given size (also used, smaller, in the story).
-struct JourneyMap: View {
-    let kilometres: Double
+struct JourneyMap: View, Animatable {
+    /// Where the North Star sits (share of the height): just above the summit, not far off.
+    static let starY = 0.15
+
+    var kilometres: Double
+    /// Lets SwiftUI animate the traveller and the gold trail between two distances.
+    var animatableData: Double {
+        get { kilometres }
+        set { kilometres = newValue }
+    }
     /// Your goal for the year; the stages sit at shares of it.
     let goal: Double
     let size: CGSize
@@ -271,8 +386,13 @@ struct JourneyMap: View {
 
             StarField(size: size)
 
+            // A faint beam from the star to the summit ties the goal to the climb.
+            LinearGradient(colors: [Theme.star.opacity(0.35), Theme.star.opacity(0)], startPoint: .top, endPoint: .bottom)
+                .frame(width: 3, height: size.height * (JourneyTrail.points.last!.y - Self.starY))
+                .blur(radius: 1.5)
+                .position(x: size.width * 0.5, y: size.height * (Self.starY + JourneyTrail.points.last!.y) / 2)
             NorthStarGlint(opacity: 1, size: 90)
-                .position(x: size.width * 0.5, y: size.height * 0.095)
+                .position(x: size.width * 0.5, y: size.height * Self.starY)
 
             // The mountain, with snow on its upper half.
             MountainShape().fill(JourneyColours.rock)
@@ -281,11 +401,11 @@ struct JourneyMap: View {
             // The ice field around the Pole and the frozen lake, then the plains.
             IceFieldShape().fill(LinearGradient(colors: [JourneyColours.twilight.opacity(0.9), JourneyColours.plains],
                                                 startPoint: .top, endPoint: .bottom))
-            SnowDrifts().stroke(.white.opacity(0.35), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+            SnowDrifts().stroke(.white.opacity(0.22), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
             LakeIceShape().fill(LinearGradient(colors: [JourneyColours.ice.opacity(0.75), JourneyColours.ice, JourneyColours.ice.opacity(0.8)],
                                                startPoint: .top, endPoint: .bottom))
-            IceCracks().stroke(.white.opacity(0.45), style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round))
-            LakeIceShape().stroke(.white.opacity(0.6), lineWidth: 1.5)
+            IceCracks().stroke(.white.opacity(0.35), style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round))
+            LakeIceShape().stroke(.white.opacity(0.45), lineWidth: 1.5)
 
             // The Pole itself: a lone marker in the ice.
             PoleMarker()
@@ -323,10 +443,8 @@ struct JourneyMap: View {
     }
 
     private func travellerPoint(_ p: (index: Int, t: Double)) -> CGPoint {
-        let points = JourneyTrail.points
-        let a = points[p.index], b = points[min(p.index + 1, points.count - 1)]
-        return CGPoint(x: (a.x + (b.x - a.x) * p.t) * size.width,
-                       y: (a.y + (b.y - a.y) * p.t) * size.height - 16)
+        let point = JourneyTrail.point(index: p.index, t: p.t, in: size)
+        return CGPoint(x: point.x, y: point.y - 16)  // feet on the trail
     }
 }
 
@@ -363,7 +481,9 @@ private struct StageMarker: View {
             }
         }
         .foregroundStyle(.white)
-        .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
+        // A double shadow (tight and soft) keeps labels readable on light and dark ground.
+        .shadow(color: .black.opacity(0.55), radius: 2, y: 1)
+        .shadow(color: .black.opacity(0.35), radius: 8)
         .frame(width: 170, alignment: onLeft ? .trailing : .leading)
 
         HStack(spacing: 10) {
