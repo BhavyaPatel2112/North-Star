@@ -7,9 +7,11 @@ import SwiftUI
 /// it; the part you have covered turns gold, and your traveller stands where
 /// you are. Every kilometre you run moves you forward.
 struct JourneyView: View {
-    /// Kilometres travelled so far. Run tracking (Apple Health) will fill this in;
-    /// until then it stays at the start.
-    @AppStorage("journeyKm") private var kilometres: Double = 0
+    /// Kilometres run since the goal was set, read from Apple Health (RunTracker).
+    @AppStorage(RunTracker.kmKey) private var kilometres: Double = 0
+    @AppStorage(RunTracker.runsKey) private var runs: Int = 0
+    @AppStorage(RunTracker.connectedKey) private var healthConnected = false
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(JourneyGoal.kmKey) private var goal: Double = 500
     @AppStorage(JourneyGoal.startKey) private var start: Double = 0
     @AppStorage(JourneyGoal.whyKey) private var why: String = ""
@@ -52,6 +54,10 @@ struct JourneyView: View {
                 // After the first layout, so the scroll view knows its content.
                 DispatchQueue.main.async { reader.scrollTo("traveller", anchor: UnitPoint(x: 0.5, y: 0.62)) }
             }
+            // Read new runs whenever the Journey opens or the app comes back to the front.
+            .task { await RunTracker.refresh() }
+            .onChange(of: scenePhase) { if scenePhase == .active { Task { await RunTracker.refresh() } } }
+            .onChange(of: start) { Task { await RunTracker.refresh() } }
         }
     }
 
@@ -77,6 +83,7 @@ struct JourneyView: View {
                 .font(.footnote)
                 .opacity(0.7)
                 .multilineTextAlignment(.center)
+            healthLine
             HStack(spacing: 16) {
                 Button("Change my North Star") { editingGoal = true }
                 Button("Why the North Star?") { showingStory = true }
@@ -92,6 +99,29 @@ struct JourneyView: View {
         .northGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .padding(.horizontal, 20)
         .padding(.top, 8)
+    }
+
+    /// Where the kilometres come from: a button to connect Apple Health, or how many runs counted.
+    @ViewBuilder
+    private var healthLine: some View {
+        if RunTracker.isAvailable {
+            if healthConnected {
+                Text(runs == 0 ? "Apple Health: no runs since you set your North Star yet"
+                               : "From Apple Health · \(runs) run\(runs == 1 ? "" : "s")")
+                    .font(.caption)
+                    .opacity(0.6)
+            } else {
+                Button {
+                    Task { await RunTracker.connect() }
+                } label: {
+                    Label("Connect Apple Health to count your runs", systemImage: "heart.fill")
+                        .font(.footnote.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.star)
+                .padding(.top, 2)
+            }
+        }
     }
 
     /// "62 of 500 km · 63 km to the North Pole"

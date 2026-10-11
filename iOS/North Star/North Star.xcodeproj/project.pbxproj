@@ -262,7 +262,10 @@
 				INFOPLIST_FILE = "NorthStar-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "North Star";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "North Star uses your location to show the air quality where you are. Your location is not stored.";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = NorthStar.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = NorthStar.entitlements;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "North Star reads your running workouts to move you along your journey. It never writes to Apple Health, and your health data never leaves your phone.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "North Star uses your location to plan runs from where you are and show conditions nearby. Your location is not stored.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -309,7 +312,10 @@
 				INFOPLIST_FILE = "NorthStar-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "North Star";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "North Star uses your location to show the air quality where you are. Your location is not stored.";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = NorthStar.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = NorthStar.entitlements;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "North Star reads your running workouts to move you along your journey. It never writes to Apple Health, and your health data never leaves your phone.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "North Star uses your location to plan runs from where you are and show conditions nearby. Your location is not stored.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
