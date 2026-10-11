@@ -50,10 +50,10 @@ enum AirBand: Int, CaseIterable, Comparable {
         switch self {
         case .good: "Go for a run."
         case .satisfactory: "Good for a run."
-        case .moderate: "Keep it short."
-        case .poor: "Rest today."
-        case .veryPoor: "Stay in."
-        case .severe: "Stay indoors."
+        case .moderate: "Keep the run short."
+        case .poor: "Consider staying indoors today."
+        case .veryPoor: "Stay indoors."
+        case .severe: "Stay indoors. Air quality is dangerous."
         }
     }
 
