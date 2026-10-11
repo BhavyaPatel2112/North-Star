@@ -187,6 +187,10 @@ struct RouteMap: View {
 enum RouteText {
     static func summary(_ option: RouteOption) -> String {
         var parts = [option.label]
+        // Only worth saying when it is a real part of the run (and not already in the label).
+        if option.greenShare >= 0.15 && option.greenShare < 0.4 {
+            parts.append("\(Int((option.greenShare * 100).rounded()))% by parks or the sea")
+        }
         if let elevation = option.elevation {
             parts.append(elevation.climbM < 5 ? "flat" : "\(elevation.climbM) m climb")
         }

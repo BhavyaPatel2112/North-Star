@@ -64,6 +64,9 @@ class StreetNetwork:
     # float32 height above sea level of each junction in metres (NASA SRTM 30 m terrain via
     # OpenTopoData; added by scripts.add_elevation). None in files made before elevation existed.
     node_elev: np.ndarray | None = None
+    # int8, 1 for streets through or beside parks, gardens, maidans and seafront
+    # promenades (added by scripts.add_green). None in files made before it existed.
+    edge_green: np.ndarray | None = None
 
     def street_name(self, edge: int) -> str:
         index = int(self.edge_name[edge])

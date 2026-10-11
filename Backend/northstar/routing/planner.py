@@ -16,6 +16,10 @@ How it works, in short:
   finish; the cleanest ones in different directions are kept. With chosen
   finishing places (such as cafes), routes go to them, adding a detour when
   they are closer than the target distance.
+- Parks, maidans and seafront promenades are nicer to run in than roads, so
+  streets through or beside them cost less (GREEN_FACTOR) and routes with more
+  of them rank higher. Streets already used still cost more, so a short run
+  may circle a park but a long one moves on instead of lapping it.
 - Every option is compared with the plain shortest route of the same kind, so
   the app can say how much cleaner it is.
 """
@@ -50,6 +54,11 @@ MAX_MAIN_ROAD_SHARE = 0.4  # when avoiding, drop routes with more than 40% on ma
 MAX_FINISH_OFFSET_M = 400  # a finishing place (cafe) must be within 400 m of a street we can route to
 STATION_REACH_M = 300      # crossing a highway in the last 300 m to reach a station is allowed
 
+# Parks and promenades: a green street costs 60% of its length, and a route's
+# ranking score drops by up to 35% with its green share.
+GREEN_FACTOR = 0.6
+GREEN_RANK = 0.35
+
 TOLERANCE = 0.03          # routes must be within 3% of the target distance
 REUSE_PENALTY = 4.0       # cost multiplier for streets already used earlier in a loop
 EARTH_M_PER_DEG = 111_320.0
@@ -66,6 +75,7 @@ class RouteOption:
     quiet_share: float              # share of distance on quiet streets
     main_road_share: float          # share of distance on main roads or highways
     repeated_share: float           # share of distance run twice
+    green_share: float = 0.0        # share of distance through or beside parks and promenades
     finish: tuple[float, float] = (0.0, 0.0)
     highway_crossings: int = 0      # times the route crosses a highway at road level
     busy_km: float = 0.0            # kilometres along main roads and highways
@@ -141,6 +151,9 @@ class Planner:
         self.xy = np.column_stack([network.node_lon * self.kx, network.node_lat * EARTH_M_PER_DEG])
         self.tree = cKDTree(self.xy)
         self.uplift = np.vectorize(ROAD_UPLIFT.get)(network.edge_class).astype(np.float32)
+        green = network.edge_green if network.edge_green is not None else np.zeros(len(network.edge_from))
+        self.green = green.astype(bool)
+        self.green_factor = np.where(self.green, GREEN_FACTOR, 1.0)
         # Junctions on a highway, and the busy-road cost of every street (see BUSY_FACTOR).
         highway = network.edge_class == 3
         self.highway_node = np.zeros(len(network.node_lat), dtype=bool)
@@ -180,7 +193,7 @@ class Planner:
         # Streets runners usually cannot or should not use (gated-complex lanes, dirt
         # tracks) cost extra in every style, so even the direct route avoids them.
         penalty = self.net.edge_penalty[area.edge_ids].astype(np.float64)
-        cost = area.length * penalty * np.power(relative, STYLES[style])
+        cost = area.length * penalty * np.power(relative, STYLES[style]) * self.green_factor[area.edge_ids]
         if avoid_busy:
             cost = cost * self.busy_factor[area.edge_ids] + self.busy_extra[area.edge_ids]
         return cost
@@ -200,6 +213,7 @@ class Planner:
             quiet_share=float(lengths[classes == 0].sum()) / distance if distance else 0.0,
             main_road_share=float(lengths[classes >= 2].sum()) / distance if distance else 0.0,
             repeated_share=repeated / distance if distance else 0.0,
+            green_share=float(lengths[self.green[edges]].sum()) / distance if distance else 0.0,
             finish=(float(self.net.node_lat[nodes[-1]]), float(self.net.node_lon[nodes[-1]])),
             highway_crossings=crossings,
             busy_km=float(lengths[classes >= 2].sum()) / 1000,
@@ -396,7 +410,7 @@ class Planner:
         # Lowest exposure first, with a penalty for streets run twice; keep options that differ.
         # When avoiding busy roads, routes that cross a highway or run along main roads go last.
         def rank(o: RouteOption) -> float:
-            score = o.mean_pm25 * (1 + 0.5 * o.repeated_share)
+            score = o.mean_pm25 * (1 + 0.5 * o.repeated_share) * (1 - GREEN_RANK * o.green_share)
             if avoid_busy:
                 score *= 1 + 0.5 * o.highway_crossings + o.main_road_share
             return score
@@ -422,6 +436,8 @@ class Planner:
     @staticmethod
     def _label(option: RouteOption) -> str:
         """A short plain description of the streets the route uses."""
+        if option.green_share >= 0.4:
+            return "Mostly parks and promenades"
         if option.main_road_share >= 0.4:
             return "Mostly main roads"
         if option.quiet_share >= 0.6:

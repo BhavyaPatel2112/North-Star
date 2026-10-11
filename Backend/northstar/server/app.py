@@ -190,6 +190,7 @@ def describe(planner: Planner, forecast: ForecastCache, option, shape: list, exp
         "pm25": round(option.mean_pm25, 1),
         "cleaner_than_direct_pct": round(option.cleaner_than_direct * 100) if option.cleaner_than_direct else None,
         "quiet_share": round(option.quiet_share, 2),
+        "green_share": round(option.green_share, 2),
         "main_road_share": round(option.main_road_share, 2),
         "repeated_share": round(option.repeated_share, 2),
         "highway_crossings": option.highway_crossings,
