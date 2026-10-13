@@ -28,6 +28,7 @@ struct JourneyView: View {
     /// Total height of the journey picture, in points.
     private let height: CGFloat = 2300
     @State private var showingStory = false
+    @State private var showingRuns = false
 
     var body: some View {
         ScrollViewReader { reader in
@@ -56,6 +57,7 @@ struct JourneyView: View {
             #if os(iOS)
             .fullScreenCover(isPresented: $showingStory) { StoryView { showingStory = false } }
             .fullScreenCover(isPresented: $editingGoal) { GoalSetupView(isEditing: true) { editingGoal = false } }
+            .sheet(isPresented: $showingRuns) { RunsJournalView { showingRuns = false } }
             #else
             .sheet(isPresented: $showingStory) { StoryView { showingStory = false }.frame(minWidth: 420, minHeight: 760) }
             .sheet(isPresented: $editingGoal) { GoalSetupView(isEditing: true) { editingGoal = false }.frame(minWidth: 420, minHeight: 760) }
@@ -114,6 +116,17 @@ struct JourneyView: View {
             .padding(.vertical, 14)
             .northGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 
+            if RunTracker.isAvailable && healthConnected {
+                Button { showingRuns = true } label: {
+                    Label(runs == 0 ? "Your runs" : "Your runs · \(runs)", systemImage: "list.bullet")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .northGlass(in: Capsule())
+            }
             if RunTracker.isAvailable && !healthConnected {
                 Button {
                     Task { await RunTracker.connect() }
@@ -141,6 +154,7 @@ struct JourneyView: View {
             if RunTracker.isAvailable {
                 Section("Apple Health") {
                     if healthConnected {
+                        Button("Your runs", systemImage: "list.bullet") { showingRuns = true }
                         Text(runs == 1 ? "1 run counted" : "\(runs) runs counted")
                         Button("Check for new runs", systemImage: "arrow.clockwise") {
                             Task { await RunTracker.refresh() }

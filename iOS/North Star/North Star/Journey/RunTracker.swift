@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import HealthKit
 
@@ -20,13 +21,28 @@ enum RunTracker {
 
     private static let store = HKHealthStore()
     private static let distance = HKQuantityType(.distanceWalkingRunning)
+    private static let heartRate = HKQuantityType(.heartRate)
 
-    /// Shows Apple's permission sheet (read workouts and running distance), then reads the runs.
+    /// Everything North Star reads: workouts, running distance, heart rate (for the runs
+    /// journal) and the GPS route a watch or phone recorded.
+    private static var readTypes: Set<HKObjectType> {
+        [HKObjectType.workoutType(), distance, heartRate, HKSeriesType.workoutRoute()]
+    }
+
+    /// True when Apple has not yet asked about some of these (for example heart rate and
+    /// routes, added after someone first connected), so the journal can offer to ask.
+    static func needsMorePermission() async -> Bool {
+        guard isAvailable else { return false }
+        let status = try? await store.statusForAuthorizationRequest(toShare: [], read: readTypes)
+        return status == .shouldRequest
+    }
+
+    /// Shows Apple's permission sheet, then reads the runs.
     /// iOS never tells an app whether reading was allowed, so if it was not, the total stays 0.
     static func connect() async {
         guard isAvailable else { return }
         do {
-            try await store.requestAuthorization(toShare: [], read: [HKObjectType.workoutType(), distance])
+            try await store.requestAuthorization(toShare: [], read: readTypes)
             UserDefaults.standard.set(true, forKey: connectedKey)
             await refresh()
         } catch {
@@ -60,5 +76,62 @@ enum RunTracker {
         let km = HKUnit.meterUnit(with: .kilo)
         if let sum = run.statistics(for: distance)?.sumQuantity() { return sum.doubleValue(for: km) }
         return run.totalDistance?.doubleValue(for: km) ?? 0
+    }
+
+    // MARK: - The runs journal
+
+    /// One run from Apple Health, as the journal shows it.
+    struct Run: Identifiable {
+        let id: UUID
+        let workout: HKWorkout
+        let start: Date
+        let seconds: TimeInterval
+        let km: Double
+        let averageHeartRate: Double?
+        let maxHeartRate: Double?
+        /// Metres climbed, when the recording app saved it.
+        let climbM: Double?
+        /// The app or watch that recorded it ("Workout", "Strava"...).
+        let source: String
+
+        /// Minutes per kilometre, when there is a distance.
+        var paceSecondsPerKm: Double? { km > 0.05 ? seconds / km : nil }
+    }
+
+    /// Running workouts from the last 12 months, newest first.
+    static func recentRuns() async -> [Run] {
+        guard isAvailable, isConnected else { return [] }
+        let since = Calendar.current.date(byAdding: .month, value: -12, to: .now) ?? .distantPast
+        let query = HKSampleQueryDescriptor(
+            predicates: [.workout(NSCompoundPredicate(andPredicateWithSubpredicates: [
+                HKQuery.predicateForWorkouts(with: .running), HKQuery.predicateForSamples(withStart: since, end: nil),
+            ]))],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)])
+        guard let workouts = try? await query.result(for: store) else { return [] }
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        return workouts.map { workout in
+            let heart = workout.statistics(for: heartRate)
+            let climb = (workout.metadata?[HKMetadataKeyElevationAscended] as? HKQuantity)?.doubleValue(for: .meter())
+            return Run(id: workout.uuid, workout: workout, start: workout.startDate, seconds: workout.duration,
+                       km: kilometres(of: workout),
+                       averageHeartRate: heart?.averageQuantity()?.doubleValue(for: bpm),
+                       maxHeartRate: heart?.maximumQuantity()?.doubleValue(for: bpm),
+                       climbM: climb, source: workout.sourceRevision.source.name)
+        }
+    }
+
+    /// The GPS track of a run, if the recording app saved one (empty otherwise).
+    static func route(of run: Run) async -> [CLLocationCoordinate2D] {
+        let routes = HKSampleQueryDescriptor(
+            predicates: [.workoutRoute(HKQuery.predicateForObjects(from: run.workout))], sortDescriptors: [])
+        guard let route = try? await routes.result(for: store).first else { return [] }
+        var points: [CLLocationCoordinate2D] = []
+        let locations = HKWorkoutRouteQueryDescriptor(route)
+        do {
+            for try await location in locations.results(for: store) { points.append(location.coordinate) }
+        } catch {
+            return points
+        }
+        return points
     }
 }

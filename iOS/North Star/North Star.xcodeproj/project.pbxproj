@@ -261,7 +261,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "North Star";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "North Star reads your running workouts to move you along your journey. It never writes to Apple Health, and your health data never leaves your phone.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "North Star reads your running workouts (distance, time, heart rate and route) to move you along your journey and show your runs. It never writes to Apple Health, and your health data never leaves your phone.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "North Star does not save anything to Apple Health. It only reads your running workouts to move you along your journey.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "North Star uses your location to plan runs from where you are and show conditions nearby. Your location is not stored.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -308,7 +308,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "North Star";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "North Star reads your running workouts to move you along your journey. It never writes to Apple Health, and your health data never leaves your phone.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "North Star reads your running workouts (distance, time, heart rate and route) to move you along your journey and show your runs. It never writes to Apple Health, and your health data never leaves your phone.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "North Star does not save anything to Apple Health. It only reads your running workouts to move you along your journey.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "North Star uses your location to plan runs from where you are and show conditions nearby. Your location is not stored.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
