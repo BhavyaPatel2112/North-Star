@@ -146,12 +146,11 @@ struct PlannerView: View {
                 if editingDistance {
                     Button("Done") { editingDistance = false }
                         .font(.body.weight(.semibold))
-                } else {
-                    timeEstimate
                 }
             }
             .contentShape(Rectangle())
             .onTapGesture { editingDistance = true }
+            timeEstimate
             if !editingDistance {
                 Label("Tap the number to type any distance", systemImage: "pencil")
                     .font(.caption)
@@ -180,14 +179,17 @@ struct PlannerView: View {
         let pace = usualPace > 0 ? usualPace : 390   // 6:30 per km until we know yours
         let minutes = Int((model.distanceKm * pace / 60).rounded())
         let time = minutes < 60 ? "\(minutes) min" : "\(minutes / 60) h \(String(format: "%02d", minutes % 60)) min"
-        return VStack(alignment: .trailing, spacing: 2) {
-            Text("about \(time)")
-                .font(.title3.weight(.medium).monospacedDigit())
+        // Sits right under the number, aligned with it, so the two read as one.
+        return HStack(spacing: 6) {
+            Image(systemName: "clock").foregroundStyle(.secondary)
+            Text("about \(time)").fontWeight(.semibold)
                 .contentTransition(.numericText(value: model.distanceKm))
-            Text(usualPace > 0 ? "at your usual \(RunFormat.pace(pace))" : "at an easy \(RunFormat.pace(pace))")
-                .font(.caption)
+            Text("· " + (usualPace > 0 ? "at your usual \(RunFormat.pace(pace))" : "at an easy \(RunFormat.pace(pace))"))
                 .foregroundStyle(.secondary)
         }
+        .font(.subheadline.monospacedDigit())
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
         .accessibilityElement(children: .combine)
     }
 
