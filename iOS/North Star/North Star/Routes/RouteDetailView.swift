@@ -15,6 +15,8 @@ struct RouteDetailView: View {
     @State private var lookedAfterRun = false
     /// The street-by-street steps start folded away, to keep the page short.
     @State private var showingSteps = false
+    @State private var showingStops = false
+    @State private var showingAfterRun = false
     @Environment(\.openURL) private var openURL
 
     private var option: RouteOption { shape.option }
@@ -49,11 +51,8 @@ struct RouteDetailView: View {
 
                     JourneyCard(title: "When to go") { hourChart }.padding(.horizontal, 16)
 
-                    JourneyCard(title: "Along the way") {
-                        if stops.isEmpty {
-                            CardNote(text: lookedForStops ? "Apple Maps shows no medical stores, shops or clinics near this route."
-                                                          : "Looking for medical stores, water and clinics near the route…")
-                        } else {
+                    JourneyCard {
+                        Dropdown(title: "Along the way", summary: stopsSummary, isOpen: $showingStops) {
                             ForEach(stops) { stop in
                                 HStack(alignment: .top, spacing: 12) {
                                     Image(systemName: stop.kind.symbol)
@@ -66,12 +65,16 @@ struct RouteDetailView: View {
                                     }
                                 }
                             }
+                            CardNote(text: "From Apple Maps. Opening hours are not always known, so check before you rely on a stop.")
                         }
-                        CardNote(text: "From Apple Maps. Opening hours are not always known, so check before you rely on a stop.")
                     }
                     .padding(.horizontal, 16)
 
-                    JourneyCard(title: "After your run") { afterRunList }.padding(.horizontal, 16).id("afterRun")
+                    JourneyCard {
+                        Dropdown(title: "After your run", summary: afterRunSummary, isOpen: $showingAfterRun) { afterRunList }
+                    }
+                    .padding(.horizontal, 16)
+                    .id("afterRun")
 
                     JourneyCard { stepsDropdown }.padding(.horizontal, 16)
 
@@ -129,30 +132,38 @@ struct RouteDetailView: View {
     // MARK: - Pieces
 
     /// "Street by street" as a dropdown: one line when closed, every street when open.
-    @ViewBuilder
     private var stepsDropdown: some View {
-        Button {
-            withAnimation(.snappy) { showingSteps.toggle() }
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Street by street").font(.headline.weight(.medium))
-                    Text("\(option.steps.count) streets").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.down")
-                    .font(.footnote.weight(.semibold))
-                    .rotationEffect(.degrees(showingSteps ? 180 : 0))
-                    .foregroundStyle(.secondary)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint(showingSteps ? "Hides the streets" : "Shows every street on the route")
-        if showingSteps {
+        Dropdown(title: "Street by street", summary: "\(option.steps.count) streets", isOpen: $showingSteps) {
             ForEach(option.steps) { step in stepRow(step) }
             CardNote(text: "Pollution is estimated for each street at your start time.")
         }
+    }
+
+    /// "4 medical stores · 2 shops for water · 1 clinic", or a note while looking.
+    private var stopsSummary: String {
+        guard lookedForStops else { return "Looking for medical stores, water and clinics…" }
+        guard !stops.isEmpty else { return "No medical stores, shops or clinics found near this route" }
+        let names: [NearbyPlaces.Stop.Kind: (String, String)] = [
+            .pharmacy: ("medical store", "medical stores"), .water: ("shop for water", "shops for water"),
+            .clinic: ("clinic", "clinics"),
+        ]
+        return NearbyPlaces.Stop.Kind.allCases.compactMap { kind in
+            let count = stops.filter { $0.kind == kind }.count
+            guard count > 0, let name = names[kind] else { return nil }
+            return "\(count) \(count == 1 ? name.0 : name.1)"
+        }.joined(separator: " · ")
+    }
+
+    /// "4 places to eat · 2 stations nearby", or a note while looking.
+    private var afterRunSummary: String {
+        guard lookedAfterRun else { return "Looking for food and stations near the finish…" }
+        let food = afterRun.filter { $0.kind == .food }.count
+        let stations = afterRun.filter { $0.kind == .station }.count
+        guard food + stations > 0 else { return "No places to eat or stations near the finish" }
+        var parts: [String] = []
+        if food > 0 { parts.append("\(food) place\(food == 1 ? "" : "s") to eat") }
+        if stations > 0 { parts.append("\(stations) station\(stations == 1 ? "" : "s")") }
+        return parts.joined(separator: " · ") + " nearby"
     }
 
     /// Places to eat and stations a short walk from the finish. Tap one for walking
@@ -161,10 +172,6 @@ struct RouteDetailView: View {
     private var afterRunList: some View {
         let food = afterRun.filter { $0.kind == .food }
         let stations = afterRun.filter { $0.kind == .station }
-        if afterRun.isEmpty {
-            CardNote(text: lookedAfterRun ? "Apple Maps shows no places to eat or stations near the finish."
-                                          : "Looking for food and stations near the finish…")
-        }
         if !food.isEmpty {
             Text("Food").font(.subheadline.weight(.semibold))
             ForEach(food) { destinationRow($0) }
@@ -359,4 +366,36 @@ struct RouteDetailView: View {
 
 private extension Double {
     func rounded(to step: Double) -> Double { (self / step).rounded() * step }
+}
+
+/// A section that folds away: a title and a one-line summary with a chevron; tap to
+/// show the full content. Keeps the route details short, as most people only need
+/// the summary.
+private struct Dropdown<Content: View>: View {
+    let title: String
+    let summary: String
+    @Binding var isOpen: Bool
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        Button {
+            withAnimation(.snappy) { isOpen.toggle() }
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline.weight(.medium))
+                    Text(summary).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .rotationEffect(.degrees(isOpen ? 180 : 0))
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(isOpen ? "Hides the details" : "Shows the details")
+        if isOpen { content }
+    }
 }
