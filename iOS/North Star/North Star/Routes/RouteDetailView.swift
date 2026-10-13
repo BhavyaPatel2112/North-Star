@@ -17,6 +17,12 @@ struct RouteDetailView: View {
     @State private var showingSteps = false
     @State private var showingStops = false
     @State private var showingAfterRun = false
+    // Pace plan: a target time (as typed) and how to spread it over the route.
+    @State private var showingPacePlan = false
+    @State private var targetText = ""
+    @State private var strategy: PacePlan.Strategy = .evenEffort
+    @FocusState private var editingTarget: Bool
+    @AppStorage(RunTracker.usualPaceKey) private var usualPace: Double = 0
     @Environment(\.openURL) private var openURL
 
     private var option: RouteOption { shape.option }
@@ -48,6 +54,12 @@ struct RouteDetailView: View {
                         }
                         .padding(.horizontal, 16)
                     }
+
+                    JourneyCard {
+                        Dropdown(title: "Pace plan", summary: pacePlanSummary, isOpen: $showingPacePlan) { pacePlanContent }
+                    }
+                    .padding(.horizontal, 16)
+                    .id("pacePlan")
 
                     JourneyCard(title: "When to go") { hourChart }.padding(.horizontal, 16)
 
@@ -96,6 +108,10 @@ struct RouteDetailView: View {
             .ignoresSafeArea(edges: .top)
             #if DEBUG
             // "-detailScrollTo afterRun" scrolls there once the places are found (for screenshots).
+            .onAppear {
+                // "-pacePlanOpen YES" opens the pace plan (for screenshots).
+                if UserDefaults.standard.bool(forKey: "pacePlanOpen") { showingPacePlan = true }
+            }
             .onChange(of: lookedAfterRun) {
                 if let target = UserDefaults.standard.string(forKey: "detailScrollTo") { scroller.scrollTo(target, anchor: .top) }
             }
@@ -130,6 +146,93 @@ struct RouteDetailView: View {
     }
 
     // MARK: - Pieces
+
+    // MARK: - Pace plan
+
+    /// The plan for the typed target time (nil while the time cannot be read).
+    private var pacePlan: PacePlan? {
+        guard let target = PacePlan.seconds(from: targetText.isEmpty ? defaultTargetText : targetText),
+              target >= 60 else { return nil }
+        let profile = option.elevation?.points.map { (km: $0.km, metres: $0.metres) } ?? []
+        return PacePlan(distanceKm: option.distanceKm, profile: profile, targetSeconds: target, strategy: strategy)
+    }
+
+    /// Your usual time for this route (from your usual pace, or an easy 6:30 /km), to the half minute.
+    private var defaultTargetText: String {
+        let pace = usualPace > 0 ? usualPace : 390
+        return RunFormat.duration((option.distanceKm * pace / 30).rounded() * 30)
+    }
+
+    private var pacePlanSummary: String {
+        guard let plan = pacePlan else { return "Type a target time like 25:00" }
+        return "Target \(RunFormat.duration(plan.targetSeconds)) · \(RunFormat.pace(plan.averagePace)) average"
+    }
+
+    @ViewBuilder
+    private var pacePlanContent: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Target time").font(.subheadline.weight(.medium))
+            Spacer()
+            TextField(defaultTargetText, text: $targetText)
+                .font(.title3.monospacedDigit())
+                .multilineTextAlignment(.trailing)
+                .focused($editingTarget)
+                #if os(iOS)
+                .keyboardType(.numbersAndPunctuation)
+                #endif
+                .frame(maxWidth: 140)
+                .accessibilityLabel("Target time, minutes and seconds")
+            if editingTarget {
+                Button("Done") { editingTarget = false }.font(.subheadline.weight(.semibold))
+            }
+        }
+        PillSwitch(selection: $strategy, options: [(.evenEffort, "Even effort"), (.negativeSplit, "Negative split")])
+        CardNote(text: strategy == .evenEffort
+                 ? "Slower up the hills, faster down them, so the effort feels the same all the way."
+                 : "Start a little easier and finish faster, about 3% each way.")
+        if let plan = pacePlan {
+            Text("\(RunFormat.pace(plan.averagePace)) average")
+                .font(.headline.monospacedDigit())
+            paceBars(plan)
+            ForEach(plan.splits) { split in
+                HStack(spacing: 10) {
+                    Text(split.lengthKm < 0.95 ? String(format: "%.1f", Double(split.index - 1) + split.lengthKm) : "\(split.index)")
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .frame(width: 30, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(RunFormat.pace(split.paceSecondsPerKm)).font(.subheadline.monospacedDigit())
+                        Text(split.note).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text(RunFormat.duration(split.elapsedAtEnd))
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            CardNote(text: "Kilometre, its pace, and the time on your watch at the end of it. Paces follow the route's hills; drag the pointer above to see where you should be.")
+        }
+    }
+
+    /// One bar per kilometre: taller is slower. Gold when faster than average.
+    private func paceBars(_ plan: PacePlan) -> some View {
+        // Bars start just below the fastest kilometre (not at zero), so small differences show.
+        let paces = plan.splits.map(\.paceSecondsPerKm)
+        let low = (paces.min() ?? 0) * 0.96, high = (paces.max() ?? 1) * 1.01
+        return Chart(plan.splits) { split in
+            BarMark(x: .value("km", "\(split.index)"),
+                    yStart: .value("Base", low), yEnd: .value("Pace", split.paceSecondsPerKm))
+                .foregroundStyle(split.paceSecondsPerKm <= plan.averagePace ? Theme.star : Theme.ink.opacity(0.35))
+                .cornerRadius(3)
+        }
+        .chartYScale(domain: low...high)
+        .chartYAxis(.hidden)
+        .chartXAxis {
+            AxisMarks { _ in AxisValueLabel() }
+        }
+        .frame(height: 70)
+        .clipped()
+        .accessibilityHidden(true)
+    }
 
     /// "Street by street" as a dropdown: one line when closed, every street when open.
     private var stepsDropdown: some View {
@@ -230,6 +333,10 @@ struct RouteDetailView: View {
                     Circle().fill(step.band.color).frame(width: 9, height: 9)
                     Text("\(step.band.name) · \(Int(step.pm25.rounded()))").font(.subheadline)
                 }
+            }
+            if showingPacePlan, let plan = pacePlan {
+                Label("On your plan: \(RunFormat.duration(plan.elapsed(atKm: pointerKm))) here", systemImage: "stopwatch")
+                    .font(.subheadline.weight(.medium).monospacedDigit())
             }
             Text(step?.displayName ?? "")
                 .font(.subheadline)
