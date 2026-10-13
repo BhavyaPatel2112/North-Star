@@ -13,6 +13,8 @@ enum RunTracker {
     static let kmKey = "journeyKm"            // kilometres run since the goal was set
     static let runsKey = "journeyRuns"        // how many runs that is
     static let connectedKey = "healthConnected"
+    /// Your usual running pace (seconds per km) from recent runs; 0 until known.
+    static let usualPaceKey = "usualPaceSecPerKm"
 
     /// False on Mac and on iPads without Apple Health.
     static var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
@@ -69,6 +71,7 @@ enum RunTracker {
         let km = runs.reduce(0.0) { total, run in total + kilometres(of: run) }
         defaults.set(km, forKey: kmKey)
         defaults.set(runs.count, forKey: runsKey)
+        await updateUsualPace()
     }
 
     /// A run's distance in kilometres (the workout's running distance, or its total).
@@ -76,6 +79,20 @@ enum RunTracker {
         let km = HKUnit.meterUnit(with: .kilo)
         if let sum = run.statistics(for: distance)?.sumQuantity() { return sum.doubleValue(for: km) }
         return run.totalDistance?.doubleValue(for: km) ?? 0
+    }
+
+    /// Your usual pace: the middle (median) pace of your last 10 runs of at least 1 km,
+    /// so one very fast or very slow run does not throw it off. The planner uses it to
+    /// say how long a run will take.
+    static func updateUsualPace() async {
+        let paces = await recentRuns()
+            .filter { $0.km >= 1 }
+            .prefix(10)
+            .compactMap(\.paceSecondsPerKm)
+            .filter { (150...900).contains($0) }   // 2:30 to 15:00 per km: ignore odd recordings
+            .sorted()
+        guard !paces.isEmpty else { return }
+        UserDefaults.standard.set(paces[paces.count / 2], forKey: usualPaceKey)
     }
 
     // MARK: - The runs journal
