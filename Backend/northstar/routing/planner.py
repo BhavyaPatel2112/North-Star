@@ -59,6 +59,10 @@ STATION_REACH_M = 300      # crossing a highway in the last 300 m to reach a sta
 GREEN_FACTOR = 0.6
 GREEN_RANK = 0.35
 
+# Park laps: a park counts as nearby up to 1.5 km away by street; at most 10 laps.
+MAX_PARK_APPROACH_M = 1500
+MAX_LAPS = 10
+
 TOLERANCE = 0.03          # routes must be within 3% of the target distance
 REUSE_PENALTY = 4.0       # cost multiplier for streets already used earlier in a loop
 EARTH_M_PER_DEG = 111_320.0
@@ -401,6 +405,137 @@ class Planner:
         before = self._crossings(option.nodes[: cut + 1], option.edges[:cut])
         option.extra["finish_crossings"] = option.highway_crossings - before
         option.highway_crossings = before
+
+    # ---------- park laps ----------
+
+    def _leg(self, area: Area, weights: np.ndarray, a: int, b: int, target_m: float) -> list[int] | None:
+        """The cleanest way from junction `a` to `b` (local numbers) of about `target_m`:
+        the direct way when that is long enough, otherwise through a turning point W
+        with a -> W -> b close to the target."""
+        costs_a, pred_a = area.tree(weights, a)
+        lengths_a = area.lengths_along_tree(costs_a, pred_a, a)
+        direct = lengths_a[b]
+        if not np.isfinite(direct):
+            return None
+        if direct >= target_m * (1 - TOLERANCE):
+            return area.path(pred_a, a, b) if a != b else [a]
+        costs_b, pred_b = area.tree(weights, b)
+        lengths_b = area.lengths_along_tree(costs_b, pred_b, b)
+        total = lengths_a + lengths_b
+        turning = np.where(np.abs(total - target_m) <= TOLERANCE * target_m)[0]
+        if len(turning) == 0:
+            return None
+        w = int(min(turning, key=lambda n: (costs_a[n] + costs_b[n]) / total[n]))
+        first, second = area.path(pred_a, a, w), area.path(pred_b, b, w)
+        if not first or not second:
+            return None
+        return first + second[::-1][1:]
+
+    def park_laps(self, lat: float, lon: float, distance_m: float, exposure: np.ndarray, loops: list[dict],
+                  mode: str, lap_count: int | None, kind: str, avoid_busy: bool = True,
+                  options: int = 2) -> list[RouteOption]:
+        """Runs that include laps of a nearby park.
+
+        mode: "all" (as much of the run as laps as the way there and back allows),
+        "half" (about half the distance as laps) or "count" (`lap_count` laps).
+        Loop runs go to the park, do the laps and come back (the way back takes any
+        distance left over); one-way runs go to the park (the way there takes the
+        rest) and finish after the laps."""
+        area = self.area(lat, lon, distance_m * 0.55 + MAX_PARK_APPROACH_M)
+        start = area.local.get(self.nearest_node(lat, lon))
+        if start is None:
+            return []
+        weights = self._weights(area, exposure, "cleanest", avoid_busy)
+        costs_s, pred_s = area.tree(weights, start)
+        lengths_s = area.lengths_along_tree(costs_s, pred_s, start)
+
+        found: list[RouteOption] = []
+        for loop in loops:
+            ring = loop["nodes"][:-1] if loop["nodes"][0] == loop["nodes"][-1] else loop["nodes"]
+            if any(n not in area.local for n in ring):
+                continue
+            local_ring = [area.local[n] for n in ring]
+            try:
+                ring_edges = [area.pair[(x, y)] for x, y in zip(local_ring, local_ring[1:] + local_ring[:1])]
+            except KeyError:
+                continue
+            # Enter the loop where it is closest by street.
+            entry = int(np.argmin([lengths_s[n] for n in local_ring]))
+            approach = float(lengths_s[local_ring[entry]])
+            if not np.isfinite(approach) or approach > MAX_PARK_APPROACH_M * 1.3:
+                continue
+            loop_m = float(area.length[ring_edges].sum())
+            back = approach if kind == "loop" else 0.0
+            # The most lap distance that fits once the way there (and back) is counted.
+            room = distance_m - approach - back
+            if mode == "all":
+                want = room
+            elif mode == "half":
+                want = distance_m / 2
+            else:
+                want = max(1, lap_count or 1) * loop_m
+            want = min(want, room, MAX_LAPS * loop_m)
+            if want < loop_m * 0.5:
+                continue  # the park is too far for this distance
+
+            # Walk the laps from the entry point, remembering the distance at each junction.
+            order = local_ring[entry:] + local_ring[:entry]
+            walked = [(0.0, order[0])]
+            done, i = 0.0, 0
+            while done < want - 1:
+                x, y = order[i % len(order)], order[(i + 1) % len(order)]
+                done += float(area.length[area.pair[(x, y)]])
+                walked.append((done, y))
+                i += 1
+            # End the laps where the rest of the run still fits: for loops, the way back
+            # from the end must fit in what is left; for one way, the total must not overshoot.
+            limit = distance_m * (1 + TOLERANCE)
+            while len(walked) > 1:
+                done, end = walked[-1]
+                way_back = float(lengths_s[end]) if kind == "loop" else 0.0
+                if approach + done + way_back <= limit:
+                    break
+                walked.pop()
+            done, end = walked[-1]
+            if done < loop_m * 0.5:
+                continue
+            lap_nodes = [node for _, node in walked]
+
+            rest = distance_m - done
+            if kind == "loop":
+                to_park = area.path(pred_s, start, order[0]) if start != order[0] else [start]
+                back_leg = self._leg(area, weights, end, start, rest - approach)
+                if not to_park or back_leg is None:
+                    continue
+                nodes = to_park + lap_nodes[1:] + back_leg[1:]
+            else:
+                to_park = self._leg(area, weights, start, order[0], rest)
+                if to_park is None:
+                    continue
+                nodes = to_park + lap_nodes[1:]
+
+            option = self._describe(area, "park_laps", "cleanest", nodes, exposure)
+            if abs(option.distance_m - distance_m) > 0.06 * distance_m:
+                continue
+            if avoid_busy and option.highway_crossings > 0:
+                continue
+            # For the Google walk check: the way there, one lap and the way back. Laps go
+            # round the same ground, and repeating it confuses Google's check points.
+            once = order + [order[0]]
+            if kind == "loop":
+                home = area.path(pred_s, start, order[0])
+                check_nodes = to_park + once[1:] + (home[::-1][1:] if home else [])
+            else:
+                check_nodes = to_park + once[1:]
+            option.extra["check"] = self._describe(area, "check", "cleanest", check_nodes, exposure)
+            option.extra["park"] = {"name": loop["name"], "loop_km": round(loop_m / 1000, 2),
+                                    "laps": round(done / loop_m, 1), "approach_km": round(approach / 1000, 2)}
+            laps_text = f"{done / loop_m:.1f}".rstrip("0").rstrip(".")
+            option.label = f"{laps_text} lap{'s' if done / loop_m > 1.05 else ''} of {loop['name']}"
+            found.append(option)
+            if len(found) == options:
+                break
+        return found
 
     # ---------- choosing and labelling ----------
 

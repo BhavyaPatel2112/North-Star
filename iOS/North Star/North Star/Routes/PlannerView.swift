@@ -37,6 +37,7 @@ struct PlannerView: View {
                     startCard
                     distanceCard
                     runCard
+                    lapsCard
                     roadsCard
                     timeCard
 
@@ -216,6 +217,51 @@ struct PlannerView: View {
             if model.kind == .oneWay { oneWayOptions }
         }
         .padding(.horizontal, 16)
+    }
+
+    /// Laps of a nearby park: none, about half the run, as much as fits, or a chosen
+    /// number. Shown only when a park with a runnable loop is close enough for the distance.
+    @ViewBuilder
+    private var lapsCard: some View {
+        if let options = model.lapOptions, model.finish == nil, model.finishNear == .anywhere {
+            JourneyCard(title: "Park laps") {
+                let where_ = options.park.distanceKm < 0.15 ? "right here"
+                    : String(format: "%.1f km away", options.park.distanceKm)
+                Text("\(options.park.name) · \(String(format: "%.2f", options.park.loopKm)) km loop · \(where_)")
+                    .font(.subheadline.weight(.medium))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        Chip(title: "No laps", selected: model.laps == .none) { model.laps = .none }
+                        Chip(title: "Half · \(Self.lapText(options.half))", selected: model.laps == .half) { model.laps = .half }
+                        Chip(title: "All · \(Self.lapText(options.all))", selected: model.laps == .all) { model.laps = .all }
+                        Chip(title: "Custom", selected: model.laps == .custom) { model.laps = .custom }
+                    }
+                    .padding(.vertical, 2)
+                }
+                if model.laps == .custom {
+                    HStack {
+                        Text("Laps").font(.subheadline.weight(.medium))
+                        Spacer()
+                        ForEach([1, 2, 3, 4, 5, 6], id: \.self) { count in
+                            Chip(title: "\(count)", selected: model.customLaps == count) { model.customLaps = count }
+                        }
+                    }
+                }
+                CardNote(text: model.laps == .none && model.kind == .oneWay
+                         ? "Tip: laps of \(options.park.name) are quieter and cleaner than the roads. Try Half."
+                         : "Quieter and cleaner than the roads, no traffic crossings, and easy to stop at any time. Laps never go beyond what fits your distance.")
+            }
+            .padding(.horizontal, 16)
+            .animation(.snappy, value: model.laps)
+        }
+    }
+
+    /// "2 laps", "0.8 lap".
+    private static func lapText(_ laps: Double) -> String {
+        let rounded = (laps * 2).rounded() / 2   // to the half lap
+        let shown = rounded >= 1 ? (rounded == rounded.rounded() ? "\(Int(rounded))" : String(format: "%.1f", rounded))
+                                 : String(format: "%.1f", laps)
+        return "\(shown) lap\(laps >= 1.25 ? "s" : "")"
     }
 
     private var roadsCard: some View {

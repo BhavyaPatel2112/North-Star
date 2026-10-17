@@ -45,6 +45,8 @@ struct RouteOption: Decodable, Identifiable {
     /// The finish, and the named place there if the run ends at one (for example a cafe).
     let finish: Coordinate
     let finishPlace: FinishPlace?
+    /// For park laps: the park and how many laps.
+    let park: Park?
     /// The route's line on the map, start to finish.
     let line: [CLLocationCoordinate2D]
     /// Street by street directions, in running order.
@@ -61,6 +63,19 @@ struct RouteOption: Decodable, Identifiable {
     struct Coordinate: Decodable {
         let lat, lon: Double
         var location: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lon) }
+    }
+
+    struct Park: Decodable {
+        let name: String
+        let loopKm: Double
+        let laps: Double
+        let approachKm: Double
+
+        enum CodingKeys: String, CodingKey {
+            case name, laps
+            case loopKm = "loop_km"
+            case approachKm = "approach_km"
+        }
     }
 
     struct FinishPlace: Decodable {
@@ -167,6 +182,7 @@ struct RouteOption: Decodable, Identifiable {
         case finishCrossings = "finish_crossings"
         case busyKm = "busy_km"
         case finishPlace = "finish_place"
+        case park
         case byHour = "by_hour"
         case bestStart = "best_start"
         case elevation
@@ -190,6 +206,7 @@ struct RouteOption: Decodable, Identifiable {
         busyKm = try c.decodeIfPresent(Double.self, forKey: .busyKm) ?? 0
         finish = try c.decode(Coordinate.self, forKey: .finish)
         finishPlace = try c.decodeIfPresent(FinishPlace.self, forKey: .finishPlace)
+        park = try c.decodeIfPresent(Park.self, forKey: .park)
         // The line arrives as [[latitude, longitude], ...].
         line = try c.decode([[Double]].self, forKey: .line).compactMap { pair in
             pair.count == 2 ? CLLocationCoordinate2D(latitude: pair[0], longitude: pair[1]) : nil
@@ -202,7 +219,14 @@ struct RouteOption: Decodable, Identifiable {
         googleMapsLink = try c.decodeIfPresent(String.self, forKey: .googleMapsLink).flatMap(URL.init(string:))
     }
 
-    var isLoop: Bool { kind != "one_way" }
+    /// True when the run ends where it started (a loop, an out-and-back, or park laps
+    /// planned as a loop; one-way park laps finish in the park).
+    var isLoop: Bool {
+        if kind == "park_laps", let first = line.first, let last = line.last {
+            return RouteShape.metres(first, last) < 80
+        }
+        return kind != "one_way"
+    }
     var band: AirBand { AirBand(pm25: pm25) }
 }
 

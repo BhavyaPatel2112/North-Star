@@ -47,6 +47,8 @@ Backend/data/processed/*
 !Backend/data/processed/street_network.npz
 # ...and the station list for "End near a station" (about 20 KB).
 !Backend/data/processed/stations.json
+# ...and the park loops for "Park laps".
+!Backend/data/processed/park_loops.json
 *.parquet
 *.csv.gz
 *.pkl

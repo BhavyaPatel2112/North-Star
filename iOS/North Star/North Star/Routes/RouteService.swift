@@ -50,6 +50,8 @@ struct RouteService {
         let end_near_food: Bool
         let end_near_station: Bool
         let allow_busy_roads: Bool
+        let laps: String
+        let lap_count: Int?
     }
 
     var session: URLSession = .shared
@@ -73,6 +75,37 @@ struct RouteService {
         return AppConfig.routeServerURL
     }
 
+    /// A park with a runnable loop near a start (for "Park laps").
+    struct NearbyPark: Decodable, Equatable {
+        let name: String
+        let loopKm: Double
+        /// Straight-line distance from the start to the park's edge, roughly.
+        let distanceKm: Double
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case loopKm = "loop_km"
+            case distanceKm = "distance_km"
+        }
+    }
+
+    /// Parks with a loop within about 1.5 km of a start, nearest first (empty on any error).
+    func nearbyParks(at point: CLLocationCoordinate2D) async -> [NearbyPark] {
+        guard let base = Self.serverURL, !Self.appKey.isEmpty else { return [] }
+        var components = URLComponents(url: base.appending(path: "v1/parks"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "lat", value: "\(point.latitude)"),
+                                  URLQueryItem(name: "lon", value: "\(point.longitude)")]
+        guard let url = components?.url else { return [] }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 90
+        request.setValue(Self.appKey, forHTTPHeaderField: "X-App-Key")
+        struct Response: Decodable { let parks: [NearbyPark] }
+        guard let (data, response) = try? await session.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let parsed = try? JSONDecoder().decode(Response.self, from: data) else { return [] }
+        return parsed.parks
+    }
+
     /// Pokes the server so it starts waking up. Errors are ignored.
     func wake() async {
         guard let base = Self.serverURL else { return }
@@ -89,7 +122,7 @@ struct RouteService {
     func plan(start: CLLocationCoordinate2D, distanceKm: Double, kind: Kind,
               startTime: Date? = nil, finishPlaces: [FinishPlace] = [],
               endNearFood: Bool = false, endNearStation: Bool = false,
-              allowBusyRoads: Bool = false) async throws -> RoutePlan {
+              allowBusyRoads: Bool = false, laps: String = "none", lapCount: Int? = nil) async throws -> RoutePlan {
         guard let base = Self.serverURL, !Self.appKey.isEmpty else { throw ServiceError.notConfigured }
         var request = URLRequest(url: base.appending(path: "v1/routes"))
         request.httpMethod = "POST"
@@ -102,7 +135,8 @@ struct RouteService {
         request.httpBody = try encoder.encode(Request(
             lat: start.latitude, lon: start.longitude, distance_km: distanceKm, kind: kind,
             start_time: startTime, finish_places: finishPlaces,
-            end_near_food: endNearFood, end_near_station: endNearStation, allow_busy_roads: allowBusyRoads))
+            end_near_food: endNearFood, end_near_station: endNearStation, allow_busy_roads: allowBusyRoads,
+            laps: laps, lap_count: lapCount))
 
         let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0

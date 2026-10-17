@@ -16,7 +16,13 @@ final class PlannerModel {
     }
 
     var start: Place {
-        didSet { if start != oldValue { startAddress = nil; lookUpStartAddress() } }
+        didSet {
+            if start != oldValue {
+                startAddress = nil
+                lookUpStartAddress()
+                Task { await lookUpParks() }
+            }
+        }
     }
     /// A readable address for the start, like "Gundecha Trillium, Thakur Village".
     private(set) var startAddress: String?
@@ -38,6 +44,16 @@ final class PlannerModel {
         case station
     }
     var finishNear: FinishNear = .anywhere
+
+    /// How much of the run to spend on laps of a nearby park.
+    enum Laps: Hashable {
+        case none, half, all, custom
+    }
+    var laps: Laps = .none
+    /// The number of laps for "Custom".
+    var customLaps = 2
+    /// Parks with a loop near the start (from the server), nearest first.
+    private(set) var nearbyParks: [RouteService.NearbyPark] = []
     /// Nil means "now".
     var startTime: Date?
 
@@ -82,7 +98,29 @@ final class PlannerModel {
     /// Starts waking the server as soon as the planner opens, and pins down the start.
     func prepare() {
         if start.coordinate == nil { refreshLocation() } else { lookUpStartAddress() }
-        Task { await service.wake() }
+        Task {
+            await service.wake()
+            await lookUpParks()
+        }
+    }
+
+    /// Asks the server which parks with a loop are near the start (for "Park laps").
+    func lookUpParks() async {
+        guard let point = startCoordinate else { nearbyParks = []; return }
+        let found = await service.nearbyParks(at: point)
+        nearbyParks = found
+        if found.isEmpty { laps = .none }
+    }
+
+    /// The nearest park, and the laps each choice would give at the current distance:
+    /// (park, laps for half, laps for all), or nil when no park is near or none fit.
+    var lapOptions: (park: RouteService.NearbyPark, half: Double, all: Double)? {
+        guard let park = nearbyParks.first, park.loopKm > 0 else { return nil }
+        let approach = park.distanceKm * 1.3   // streets wind
+        let room = distanceKm - approach * (kind == .loop ? 2 : 1)
+        let all = room / park.loopKm
+        guard all >= 0.5 else { return nil }
+        return (park, min(distanceKm / 2, room) / park.loopKm, all)
     }
 
     /// Asks GPS for a precise fix (up to 10 seconds), then looks up its address.
@@ -91,6 +129,7 @@ final class PlannerModel {
         Task { @MainActor in
             while location.state == .locating { try? await Task.sleep(for: .milliseconds(300)) }
             lookUpStartAddress()
+            await lookUpParks()
         }
     }
 
@@ -153,7 +192,8 @@ final class PlannerModel {
             let plan = try await service.plan(start: origin, distanceKm: distanceKm, kind: kind,
                                               startTime: startTime, finishPlaces: finishes,
                                               endNearFood: wantsFood, endNearStation: wantsStation,
-                                              allowBusyRoads: allowBusyRoads)
+                                              allowBusyRoads: allowBusyRoads,
+                                              laps: lapsRequest, lapCount: laps == .custom ? customLaps : nil)
             phase = plan.options.isEmpty ? .failed(Self.noRouteMessage(plan, finish: finish)) : .planned(plan)
         } catch let error as URLError where error.code == .timedOut {
             phase = .failed("The route planner took too long to answer. It may still be waking up; try again.")
@@ -163,6 +203,17 @@ final class PlannerModel {
     }
 
     func reset() { phase = .choosing }
+
+    /// What to send the server for laps ("none" when no park fits or a finish was chosen).
+    private var lapsRequest: String {
+        guard lapOptions != nil, finish == nil, finishNear == .anywhere else { return "none" }
+        switch laps {
+        case .none: return "none"
+        case .half: return "half"
+        case .all: return "all"
+        case .custom: return "count"
+        }
+    }
 
     /// A finish point further away than the chosen distance can't be reached; raise
     /// the distance to the straight-line distance plus 30% (streets are not straight).
