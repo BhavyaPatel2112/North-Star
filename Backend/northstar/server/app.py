@@ -31,7 +31,7 @@ from northstar.db.connection import connect
 from northstar.routing import elevation, food, parks, stations, walk_check
 from northstar.routing.network import StreetNetwork
 from northstar.routing.planner import Planner, google_maps_link, road_mix, steps
-from northstar.server.forecast import INDIA, ForecastCache, best_start
+from northstar.server.forecast import INDIA, ForecastCache, best_start, best_window
 
 CANDIDATES = 6      # routes planned per request
 SHOWN = 3           # routes returned
@@ -210,7 +210,7 @@ def describe(planner: Planner, forecast: ForecastCache, option, shape: list, exp
              check: walk_check.WalkCheck) -> dict:
     """Everything the app needs to show one route option."""
     lengths = planner.net.edge_length[option.edges].astype(np.float64)
-    by_hour = forecast.route_by_hour(option.edges, lengths)
+    by_hour = forecast.route_by_hour(option.edges, lengths, near=shape[0] if shape else None)
     return {
         "kind": option.kind,
         "label": option.label,
@@ -234,6 +234,7 @@ def describe(planner: Planner, forecast: ForecastCache, option, shape: list, exp
         "by_hour": by_hour,
         "elevation": elevation.profile(planner.net, option.nodes, option.edges),
         "best_start": best_start(by_hour),
+        "best_window": best_window(by_hour),
         "walk_check": {"checked": check.checked, "walkable": check.walkable,
                        "google_distance_ratio": check.ratio, "overlap": check.overlap, "note": check.note},
         "google_maps_link": google_maps_link(planner, option),
