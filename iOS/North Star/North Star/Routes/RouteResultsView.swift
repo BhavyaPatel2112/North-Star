@@ -90,8 +90,8 @@ struct RouteResultsView: View {
                         if let crossing = RouteText.stationCrossing(option) {
                             Text(crossing).font(.subheadline).foregroundStyle(.secondary)
                         }
-                        if let best = option.bestStart {
-                            Text("Cleanest start \(RouteText.time(best.time)) (PM2.5 \(Int(best.pm25.rounded())))")
+                        if let best = option.suggestedStart {
+                            Text(RouteText.bestStartLine(best))
                                 .font(.subheadline)
                         }
                     }
@@ -235,4 +235,21 @@ enum RouteText {
     }
 
     static func time(_ date: Date) -> String { SkyScreen.time(date) }
+
+    /// "Best start 6:30 am · air Satisfactory · feels like 29°C", with a note if it is
+    /// before sunrise or after sunset.
+    static func bestStartLine(_ hour: RouteOption.HourValue) -> String {
+        var text = "Best start \(time(hour.time)) · air \(AirBand(pm25: hour.pm25).name)"
+        if let feels = hour.feelsLike { text += " · feels like \(Int(feels.rounded()))°C" }
+        if let note = darkNote(start: hour.time) { text += " · \(note)" }
+        return text
+    }
+
+    /// "before sunrise (6:28 am)" or "after sunset (6:12 pm)" when a start is in the dark.
+    static func darkNote(start: Date) -> String? {
+        guard let sun = Comfort.sunTimes(on: start) else { return nil }
+        if start < sun.rise { return "before sunrise (\(time(sun.rise)))" }
+        if start > sun.set { return "after sunset (\(time(sun.set)))" }
+        return nil
+    }
 }

@@ -270,7 +270,8 @@ alter table api_usage       enable row level security;
 alter table google_readings enable row level security;
 
 -- What the app calls (through Supabase's web API with its public key):
--- the forecast for the hexagon nearest a point. Read-only, and the only thing
+-- the forecast for the hexagon nearest a point (pollution, plus temperature and
+-- humidity from its weather square, for "feels like"). Read-only, and the only thing
 -- the public key can reach: every table keeps row level security with no
 -- public policies. "security definer" lets this one function read the
 -- tables on the caller's behalf.
@@ -282,13 +283,15 @@ as $$
     with here as (
         select ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography as point
     ), cell as (
-        select g.h3_index, g.area_name, ST_Distance(g.location, here.point) as distance_m
+        select g.h3_index, g.area_name, g.weather_cell_id, ST_Distance(g.location, here.point) as distance_m
         from grid_cells g, here
         order by g.location <-> here.point
         limit 1
     ), hours as (
-        select p.ts, p.pm25, p.pm10, p.no2, p.o3
-        from grid_predictions p, cell
+        select p.ts, p.pm25, p.pm10, p.no2, p.o3, w.temperature_c, w.relative_humidity
+        from grid_predictions p
+        cross join cell
+        left join weather_hourly w on w.cell_id = cell.weather_cell_id and w.ts = p.ts
         -- grid_predictions stores the hexagon id as a number; convert the text id to match
         where p.h3 = ('x' || lpad(cell.h3_index, 16, '0'))::bit(64)::bigint
         order by p.ts

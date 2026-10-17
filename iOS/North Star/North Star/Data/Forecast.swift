@@ -30,18 +30,21 @@ struct Forecast: Decodable, Equatable {
         hours.lastIndex { $0.start <= now } ?? 0
     }
 
-    /// The cleanest two-hour stretch for a run in the next 24 hours,
-    /// between 5 am and 10 pm in Mumbai.
-    func bestWindow(now: Date = .now) -> (index: Int, pm25: Double)? {
+    /// The best two-hour stretch for a run in the next 24 hours, between 5 am and
+    /// 10 pm in Mumbai, balancing clean air and heat (see Comfort.runScore): in Mumbai
+    /// the cleanest hours are often the hottest.
+    func bestWindow(now: Date = .now) -> (index: Int, pm25: Double, score: Double)? {
         let start = currentIndex(now: now)
         let end = min(hours.count - 1, start + 24)
-        var best: (index: Int, pm25: Double)?
+        var best: (index: Int, pm25: Double, score: Double)?
         guard start < end else { return nil }
         for i in start..<end {
             let hour = Calendar.mumbai.component(.hour, from: hours[i].start)
             guard (5...21).contains(hour) else { continue }
-            let average = (hours[i].pm25Value + hours[i + 1].pm25Value) / 2
-            if best == nil || average < best!.pm25 - 0.5 { best = (i, average) }
+            let pm25 = (hours[i].pm25Value + hours[i + 1].pm25Value) / 2
+            let feels = [hours[i].feelsLike, hours[i + 1].feelsLike].compactMap { $0 }
+            let score = Comfort.runScore(pm25: pm25, feelsLike: feels.isEmpty ? nil : feels.reduce(0, +) / Double(feels.count))
+            if best == nil || score < best!.score - 0.02 { best = (i, pm25, score) }
         }
         return best
     }
@@ -55,9 +58,20 @@ struct HourReading: Decodable, Equatable {
     let pm10: Double?
     let no2: Double?
     let o3: Double?
+    /// Air temperature (°C) and relative humidity (%) from the weather forecast (nil on older data).
+    let temperatureC: Double?
+    let humidity: Double?
 
     enum CodingKeys: String, CodingKey {
         case start = "ts", pm25, pm10, no2, o3
+        case temperatureC = "temperature_c"
+        case humidity = "relative_humidity"
+    }
+
+    /// How hot it feels once humidity is counted (°C).
+    var feelsLike: Double? {
+        guard let temperatureC, let humidity else { return nil }
+        return Comfort.feelsLike(temperatureC: temperatureC, humidity: humidity)
     }
 
     var pm25Value: Double { pm25 ?? 0 }

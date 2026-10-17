@@ -170,6 +170,9 @@ struct SkyScreen: View {
                     .padding(.horizontal, 5).padding(.vertical, 1)
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(.white.opacity(0.6), lineWidth: 1))
             }
+            if let line = Comfort.line(feelsLike: reading.feelsLike, humidity: reading.humidity) {
+                Text(line)
+            }
             if AirBand.mayReachModerate(pm25: reading.pm25Value) {
                 Text("May reach Moderate")
             }
@@ -199,8 +202,8 @@ struct SkyScreen: View {
         }
     }
 
-    /// Back to now when looking ahead; otherwise the cleanest time today, if clearly
-    /// cleaner than now; otherwise the journey.
+    /// Back to now when looking ahead; otherwise the best time today (clean air and not
+    /// too hot), if clearly better than now; otherwise the journey.
     @ViewBuilder
     private var timeCard: some View {
         if model.index != model.nowIndex {
@@ -209,7 +212,7 @@ struct SkyScreen: View {
             }
         } else if let reading = model.reading, let best = bestWindowSuggestion(currentPM25: reading.pm25Value),
                   let start = model.forecast?.hours[best.index].start {
-            GlassCard(title: "Cleanest at \(Self.time(start))", systemImage: "sun.horizon") {
+            GlassCard(title: "Best at \(Self.time(start))", systemImage: "sun.horizon") {
                 withAnimation(.smooth(duration: 0.9)) { model.position = Double(best.index) }
             }
         } else {
@@ -350,9 +353,12 @@ struct SkyScreen: View {
     // MARK: - Text
 
     /// Suggest the best window only if it is clearly cleaner than now.
-    private func bestWindowSuggestion(currentPM25: Double) -> (index: Int, pm25: Double)? {
-        guard let best = model.forecast?.bestWindow(), best.pm25 + 5 < currentPM25 else { return nil }
-        return best
+    /// The best time today (air and heat together), if it is clearly better than now.
+    private func bestWindowSuggestion(currentPM25: Double) -> (index: Int, pm25: Double, score: Double)? {
+        guard let forecast = model.forecast, let best = forecast.bestWindow() else { return nil }
+        let now = forecast.hours[forecast.currentIndex()]
+        let nowScore = Comfort.runScore(pm25: currentPM25, feelsLike: now.feelsLike)
+        return best.score + 0.2 < nowScore && best.index != forecast.currentIndex() ? best : nil
     }
 
     private var timeLabel: String {

@@ -430,13 +430,28 @@ struct RouteDetailView: View {
     /// The route's PM2.5 for each hour over the next day, best start marked.
     private var hourChart: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let best = option.bestStart {
-                Text("Cleanest start: \(RouteText.time(best.time)) · \(AirBand(pm25: best.pm25).name)")
+            if let best = option.suggestedStart {
+                Text("Best start: \(RouteText.time(best.time))")
                     .font(.headline)
+                Text([
+                    "Air \(AirBand(pm25: best.pm25).name)",
+                    best.feelsLike.map { "feels like \(Int($0.rounded()))°C" },
+                    best.humidity.map { "\(Int($0.rounded()))% humidity" },
+                ].compactMap { $0 }.joined(separator: " · "))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if let note = RouteText.darkNote(start: best.time) {
+                    Label("Starts \(note): pick lit, busy streets", systemImage: "moon.stars")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if let cleanest = option.bestStart, cleanest.time != best.time, let hot = cleanest.feelsLike {
+                    CardNote(text: "The cleanest air is at \(RouteText.time(cleanest.time)), but it feels like \(Int(hot.rounded()))°C then.")
+                }
             }
             Chart(option.byHour) { hour in
                 BarMark(x: .value("Hour", hour.time, unit: .hour), y: .value("PM2.5", hour.pm25))
-                    .foregroundStyle(AirBand(pm25: hour.pm25).color.opacity(hour.time == option.bestStart?.time ? 1 : 0.6))
+                    .foregroundStyle(AirBand(pm25: hour.pm25).color.opacity(hour.time == option.suggestedStart?.time ? 1 : 0.6))
             }
             .chartXAxis {
                 AxisMarks(values: .stride(by: .hour, count: 6)) { _ in
