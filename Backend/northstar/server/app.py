@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 
 from northstar import config
 from northstar.db.connection import connect
-from northstar.routing import elevation, food, stations, walk_check
+from northstar.routing import elevation, food, parks, stations, walk_check
 from northstar.routing.network import StreetNetwork
 from northstar.routing.planner import Planner, google_maps_link, road_mix, steps
 from northstar.server.forecast import INDIA, ForecastCache, best_start
@@ -50,6 +50,7 @@ async def lifespan(app: FastAPI):
     state["planner"] = planner
     state["forecast"] = ForecastCache(planner)
     state["stations"] = stations.load()
+    state["parks"] = parks.load()
     yield
 
 
@@ -82,6 +83,9 @@ class RouteRequest(BaseModel):
     end_near_station: bool = Field(default=False, description="End at a local train or metro station, "
                                    "to ride home (one way only)")
     allow_busy_roads: bool = Field(default=False, description="Allow highway crossings and mostly-main-road routes")
+    laps: Literal["none", "half", "all", "count"] = Field(
+        default="none", description="Laps of a nearby park: none, about half the run, as much as fits, or lap_count laps")
+    lap_count: int | None = Field(default=None, ge=1, le=10, description="Number of laps when laps is 'count'")
 
 
 # ---------- endpoints ----------
@@ -92,6 +96,20 @@ def health() -> dict:
     forecast: ForecastCache = state["forecast"]
     return {"ok": True, "streets": int(len(state["planner"].net.edge_from)),
             "forecast_run": forecast.run_at.isoformat() if forecast.run_at else None}
+
+
+@app.get("/v1/parks", dependencies=[Depends(require_app_key)])
+def nearby_parks(lat: float, lon: float) -> dict:
+    """Parks with a runnable loop near a start, nearest first, so the app can offer laps:
+    [{name, loop_km, distance_km}] (distance_km is a straight line to the park's middle)."""
+    found = parks.nearby(state["parks"], lat, lon)[:3]
+    from math import cos, radians, sqrt
+    kx = cos(radians(lat)) * 111_320
+    return {"parks": [{
+        "name": p["name"], "loop_km": round(p["length_m"] / 1000, 2),
+        "distance_km": round(max(0.0, sqrt(((p["lon"] - lon) * kx) ** 2 + ((p["lat"] - lat) * 111_320) ** 2)
+                                 - p["length_m"] / 6) / 1000, 2),
+    } for p in found]}
 
 
 @app.post("/v1/routes", dependencies=[Depends(require_app_key)])
@@ -139,12 +157,22 @@ def plan_routes(request: RouteRequest) -> dict:
 
     candidates = plan(avoid)
 
+    # Park laps (only when the app asks): put up to 2 lap routes first.
+    if request.laps != "none" and not places:
+        near = parks.nearby(state["parks"], request.lat, request.lon)
+        laps = planner.park_laps(request.lat, request.lon, distance_m, exposure, near, request.laps,
+                                 request.lap_count, request.kind, avoid)
+        candidates = laps + candidates
+
     # Cleanest first; ask Google about each until SHOWN routes are confirmed.
     shown, rejected = [], 0
     with connect() as conn:
         for option in candidates:
             shape = planner.shape(option)
-            check = walk_check.check(conn, shape, option.distance_m)
+            # Lap routes are checked on their unique path (there, one lap, back).
+            checked = option.extra.get("check", option)
+            check = walk_check.check(conn, planner.shape(checked), checked.distance_m,
+                                     lenient=option.kind == "park_laps")
             if check.checked and not check.walkable:
                 rejected += 1
                 continue
@@ -199,6 +227,7 @@ def describe(planner: Planner, forecast: ForecastCache, option, shape: list, exp
         "road_km": road_mix(planner, option),
         "finish": {"lat": option.finish[0], "lon": option.finish[1]},
         "finish_place": option.extra.get("place"),
+        "park": option.extra.get("park"),
         "line": [[round(lat, 6), round(lon, 6)] for lat, lon in shape],
         "steps": [{**s, "km_from": round(s["km_from"], 3), "km": round(s["km"], 3), "pm25": round(s["pm25"], 1)}
                   for s in steps(planner, option, exposure)],

@@ -38,6 +38,11 @@ DAILY_LIMIT = int(os.getenv("GOOGLE_ROUTES_DAILY_LIMIT", "900"))
 
 MAX_RATIO = 1.15     # Google may need at most 15% more distance than us
 MIN_OVERLAP = 0.80   # and must follow at least 80% of our line
+# Routes that double back on themselves (park laps: into the park and out again on the
+# same street) make Google turn round at its check points, which adds distance even
+# when it follows our line exactly; for them the overlap is the test.
+LENIENT_MAX_RATIO = 1.6
+LENIENT_MIN_OVERLAP = 0.85
 PIECE_M = 7000       # routes longer than this are checked in pieces of about this length
 
 
@@ -164,7 +169,7 @@ def google_walk(conn, shape: list) -> tuple[float, list]:
     return float(route["distanceMeters"]), decode_polyline(route["polyline"]["encodedPolyline"])
 
 
-def check(conn, shape: list, distance_m: float) -> WalkCheck:
+def check(conn, shape: list, distance_m: float, lenient: bool = False) -> WalkCheck:
     """Ask Google whether a route can really be walked as drawn."""
     if not config.GOOGLE_AIR_QUALITY_KEY:
         return WalkCheck(checked=False, walkable=None, note="no Google key")
@@ -185,5 +190,6 @@ def check(conn, shape: list, distance_m: float) -> WalkCheck:
         line += piece_line
     ratio = google_m / max(distance_m, 1.0)
     share = overlap(shape, line)
-    return WalkCheck(checked=True, walkable=ratio <= MAX_RATIO and share >= MIN_OVERLAP,
+    max_ratio, min_overlap = (LENIENT_MAX_RATIO, LENIENT_MIN_OVERLAP) if lenient else (MAX_RATIO, MIN_OVERLAP)
+    return WalkCheck(checked=True, walkable=ratio <= max_ratio and share >= min_overlap,
                      ratio=round(ratio, 3), overlap=round(share, 3))
