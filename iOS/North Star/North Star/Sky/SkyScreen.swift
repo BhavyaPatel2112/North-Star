@@ -58,7 +58,7 @@ struct SkyScreen: View {
         .background(Theme.mist)
         .contentShape(Rectangle())
         .coordinateSpace(name: "sky")
-        .simultaneousGesture(scrub)
+        .gesture(scrub)
         .sensoryFeedback(.selection, trigger: model.reading?.band)
         .task { refresh() }
         .onChange(of: location.state) { handleLocation() }
@@ -291,43 +291,40 @@ struct SkyScreen: View {
     /// Sideways drag moves through time. A drag that starts mostly up or down is
     /// left to the pager (to change place); once a sideways drag starts, the pager
     /// pauses so the two never fight.
-    private var scrub: some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .named("sky"))
-            .onChanged { value in
-                guard model.status == .ready, let count = model.forecast?.hours.count else { return }
-                if dragStart == nil {
-                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                    dragStart = model.position
-                    // A drag that starts on (or just around) the slider grabs the dot.
-                    draggingTrack = trackFrame.insetBy(dx: -12, dy: -22).contains(value.startLocation)
-                    scrubbing = true
-                }
-                let target = draggingTrack
-                    ? Double((value.location.x - trackFrame.minX) / pointsPerHour)
-                    : dragStart! + Double(value.translation.width / pointsPerHour)
-                model.position = min(Double(count - 1), max(0, target))
+    private var scrub: HorizontalPan {
+        HorizontalPan(coordinateSpace: .named("sky"), onChanged: { value in
+            guard model.status == .ready, let count = model.forecast?.hours.count else { return }
+            if dragStart == nil {
+                dragStart = model.position
+                // A drag that starts on (or just around) the slider grabs the dot.
+                draggingTrack = trackFrame.insetBy(dx: -12, dy: -22).contains(value.startLocation)
+                scrubbing = true
             }
-            .onEnded { value in
-                guard let start = dragStart, let count = model.forecast?.hours.count else { return }
-                dragStart = nil
-                scrubbing = false
-                if draggingTrack {
-                    // On the slider: settle on the hour under the finger, no flick.
-                    draggingTrack = false
-                    let target = Double((value.location.x - trackFrame.minX) / pointsPerHour)
-                    withAnimation(.smooth(duration: 0.25)) {
-                        model.position = min(Double(count - 1), max(0, target.rounded()))
-                    }
-                    return
-                }
-                // A quick flick carries on a little (up to 4 hours), like flicking a
-                // list, then settles on a whole hour with a soft spring.
-                let flick = (value.predictedEndTranslation.width - value.translation.width) / pointsPerHour
-                let target = start + Double(value.translation.width / pointsPerHour) + min(4, max(-4, Double(flick)))
-                withAnimation(.smooth(duration: 0.45)) {
+            let target = draggingTrack
+                ? Double((value.location.x - trackFrame.minX) / pointsPerHour)
+                : dragStart! + Double(value.translation / pointsPerHour)
+            model.position = min(Double(count - 1), max(0, target))
+        }, onEnded: { value in
+            guard let start = dragStart, let count = model.forecast?.hours.count else { return }
+            dragStart = nil
+            scrubbing = false
+            if draggingTrack {
+                // On the slider: settle on the hour under the finger, no flick.
+                draggingTrack = false
+                let target = Double((value.location.x - trackFrame.minX) / pointsPerHour)
+                withAnimation(.smooth(duration: 0.25)) {
                     model.position = min(Double(count - 1), max(0, target.rounded()))
                 }
+                return
             }
+            // A quick flick carries on a little (up to 4 hours), like flicking a
+            // list, then settles on a whole hour with a soft spring.
+            let flick = value.velocity * 0.2 / pointsPerHour
+            let target = start + Double(value.translation / pointsPerHour) + min(4, max(-4, Double(flick)))
+            withAnimation(.smooth(duration: 0.45)) {
+                model.position = min(Double(count - 1), max(0, target.rounded()))
+            }
+        })
     }
 
     private func refresh(keepPosition: Bool = false) {

@@ -6,7 +6,8 @@ import HealthKit
 ///
 /// Only running workouts count (from any app or watch that saves them to
 /// Apple Health: Apple Watch, Garmin, Strava, Nike Run Club...), and only those
-/// since you set your North Star. Their distances are added up into
+/// since you set your North Star, each run once even if two apps saved it.
+/// Their distances are added up into
 /// "journeyKm", which the Journey tab shows. North Star only reads: it never
 /// writes to Apple Health, and nothing leaves the phone.
 enum RunTracker {
@@ -66,12 +67,45 @@ enum RunTracker {
         let query = HKSampleQueryDescriptor(
             predicates: [.workout(NSCompoundPredicate(andPredicateWithSubpredicates: [running, recent]))],
             sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)])
-        guard let runs = try? await query.result(for: store) else { return }
+        guard let found = try? await query.result(for: store) else { return }
+        let runs = uniqueRuns(found)
 
         let km = runs.reduce(0.0) { total, run in total + kilometres(of: run) }
         defaults.set(km, forKey: kmKey)
         defaults.set(runs.count, forKey: runsKey)
         await updateUsualPace()
+    }
+
+    /// One copy of each run. Apps that sync to Apple Health (Strava, Garmin, Nike Run Club)
+    /// often save a second copy of a run your watch already saved, so the same run would
+    /// show twice and count twice. Two runs are the same when they start within 3 minutes
+    /// of each other and their durations differ by less than 10%; the copy with the most
+    /// information is kept (heart rate, then a GPS route, then Apple's own recording).
+    static func uniqueRuns(_ workouts: [HKWorkout]) -> [HKWorkout] {
+        var kept: [HKWorkout] = []
+        for workout in workouts.sorted(by: { $0.startDate < $1.startDate }) {
+            if let index = kept.firstIndex(where: { isSameRun($0, workout) }) {
+                if richness(of: workout) > richness(of: kept[index]) { kept[index] = workout }
+            } else {
+                kept.append(workout)
+            }
+        }
+        return kept
+    }
+
+    private static func isSameRun(_ a: HKWorkout, _ b: HKWorkout) -> Bool {
+        abs(a.startDate.timeIntervalSince(b.startDate)) < 180
+            && abs(a.duration - b.duration) < max(a.duration, b.duration) * 0.1
+    }
+
+    /// How much a copy of a run tells us: heart rate counts most, then a route, then
+    /// whether Apple recorded it (Apple Watch or iPhone) rather than a syncing app.
+    private static func richness(of workout: HKWorkout) -> Int {
+        var score = 0
+        if workout.statistics(for: heartRate)?.averageQuantity() != nil { score += 4 }
+        if workout.metadata?[HKMetadataKeyElevationAscended] != nil { score += 1 }
+        if workout.sourceRevision.source.bundleIdentifier.hasPrefix("com.apple") { score += 2 }
+        return score
     }
 
     /// A run's distance in kilometres (the workout's running distance, or its total).
@@ -124,7 +158,8 @@ enum RunTracker {
                 HKQuery.predicateForWorkouts(with: .running), HKQuery.predicateForSamples(withStart: since, end: nil),
             ]))],
             sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)])
-        guard let workouts = try? await query.result(for: store) else { return [] }
+        guard let found = try? await query.result(for: store) else { return [] }
+        let workouts = uniqueRuns(found).sorted { $0.startDate > $1.startDate }
         let bpm = HKUnit.count().unitDivided(by: .minute())
         return workouts.map { workout in
             let heart = workout.statistics(for: heartRate)
