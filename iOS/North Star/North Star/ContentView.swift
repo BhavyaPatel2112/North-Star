@@ -1,30 +1,48 @@
 import SwiftUI
 
-/// The app's root view: the tabs (Today, Plan, Journey), with the opening star
-/// on top when the app starts, the story if the user asks "Why the North Star?",
-/// and, until it is chosen, the screen to set your own North Star (required once).
+/// The app's root view: the tabs (Today, Plan, Journey).
+///
+/// The first time the app opens, it plays the opening star, then the "Why the North
+/// Star?" story, then asks for your own North Star (your goal). After that it opens
+/// straight onto the tabs; the story can be replayed from the Journey tab.
 struct ContentView: View {
     enum Intro { case star, story, goal, none }
 
+    /// True once the opening star and story have been seen (or skipped) once.
+    static let seenIntroKey = "hasSeenIntro"
+
     @State private var intro: Intro = {
         #if DEBUG
-        // "-skipIntro YES" goes straight to the app; "-story 3" opens the story at scene 4.
+        // "-skipIntro YES" goes straight to the app; "-story 3" opens the story at scene 4;
+        // "-firstLaunch YES" plays the first-time opening again.
         if UserDefaults.standard.object(forKey: "story") != nil { return .story }
         if UserDefaults.standard.bool(forKey: "goalSetup") { return .goal }
+        if UserDefaults.standard.bool(forKey: "firstLaunch") { return .star }
         #endif
-        return UserDefaults.standard.bool(forKey: "skipIntro") ? .none : .star
+        if UserDefaults.standard.bool(forKey: "skipIntro") { return .none }
+        return ContentView.hasSeenIntro ? (JourneyGoal.isSet ? .none : .goal) : .star
     }()
+
+    /// Seen before, or set up before this existed (anyone with a goal has been through it).
+    static var hasSeenIntro: Bool {
+        UserDefaults.standard.bool(forKey: seenIntroKey) || JourneyGoal.isSet
+    }
 
     var body: some View {
         ZStack {
             main
             switch intro {
             case .star:
-                LaunchStar(onEnter: { leave(to: afterIntro) }, onStory: { leave(to: .story) })
+                // First time: the star runs straight into the story.
+                LaunchStar(onEnter: { leave(to: afterIntro) }, onStory: { leave(to: .story) },
+                           onFinished: { leave(to: .story) })
                     .transition(.opacity)
                     .zIndex(1)
             case .story:
-                StoryView(startAt: UserDefaults.standard.integer(forKey: "story")) { leave(to: afterIntro) }
+                StoryView(startAt: UserDefaults.standard.integer(forKey: "story")) {
+                    UserDefaults.standard.set(true, forKey: ContentView.seenIntroKey)
+                    leave(to: afterIntro)
+                }
                     .transition(.opacity)
                     .zIndex(2)
             case .goal:

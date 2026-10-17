@@ -12,6 +12,9 @@ struct LaunchStar: View {
     let onEnter: () -> Void
     /// "Why the North Star?": play the story.
     let onStory: () -> Void
+    /// When set (the first time the app opens), the star goes straight on to this when it
+    /// ends or is tapped, instead of showing the two choices.
+    var onFinished: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// When the animation's clock started; nil until the shader is ready to draw.
@@ -43,7 +46,7 @@ struct LaunchStar: View {
             .ignoresSafeArea()
             .contentShape(Rectangle())
             // A tap during the animation skips straight to the choices.
-            .onTapGesture { withAnimation(.easeOut(duration: 0.5)) { showChoices = true } }
+            .onTapGesture { finish() }
             .accessibilityLabel("North Star")
             .accessibilityAddTraits(.isImage)
 
@@ -66,7 +69,16 @@ struct LaunchStar: View {
             if UserDefaults.standard.object(forKey: "introAt") != nil { return }
             #endif
             try? await Task.sleep(for: .seconds(total))
-            withAnimation(.easeOut(duration: 0.8)) { showChoices = true }
+            if !Task.isCancelled { finish() }
+        }
+    }
+
+    /// The end of the star: on to the story (first time), or show the two choices.
+    private func finish() {
+        if let onFinished {
+            onFinished()
+        } else {
+            withAnimation(.easeOut(duration: 0.6)) { showChoices = true }
         }
     }
 
