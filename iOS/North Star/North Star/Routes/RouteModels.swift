@@ -55,6 +55,10 @@ struct RouteOption: Decodable, Identifiable {
     let byHour: [HourValue]
     /// The cleanest time to start between 5 am and 10 pm.
     let bestStart: HourValue?
+    /// The best start balancing clean air and heat (nil from older servers).
+    let bestWindow: HourValue?
+    /// The start to suggest: air and heat together when known, otherwise the cleanest.
+    var suggestedStart: HourValue? { bestWindow ?? bestStart }
     /// How high the ground is along the route (nil from older servers).
     let elevation: Elevation?
     let walkCheck: WalkCheck
@@ -104,7 +108,15 @@ struct RouteOption: Decodable, Identifiable {
     struct HourValue: Decodable, Identifiable {
         let time: Date
         let pm25: Double
+        /// How hot it feels (°C) and humidity (%), when the server knows them.
+        let feelsLike: Double?
+        let humidity: Double?
         var id: Date { time }
+
+        enum CodingKeys: String, CodingKey {
+            case time, pm25, humidity
+            case feelsLike = "feels_like_c"
+        }
     }
 
     /// The ground along the route: height (m) at distances from the start (km),
@@ -185,6 +197,7 @@ struct RouteOption: Decodable, Identifiable {
         case park
         case byHour = "by_hour"
         case bestStart = "best_start"
+        case bestWindow = "best_window"
         case elevation
         case walkCheck = "walk_check"
         case googleMapsLink = "google_maps_link"
@@ -214,6 +227,7 @@ struct RouteOption: Decodable, Identifiable {
         steps = try c.decode([RouteStep].self, forKey: .steps)
         byHour = try c.decode([HourValue].self, forKey: .byHour)
         bestStart = try c.decodeIfPresent(HourValue.self, forKey: .bestStart)
+        bestWindow = try c.decodeIfPresent(HourValue.self, forKey: .bestWindow)
         elevation = try c.decodeIfPresent(Elevation.self, forKey: .elevation)
         walkCheck = try c.decode(WalkCheck.self, forKey: .walkCheck)
         googleMapsLink = try c.decodeIfPresent(String.self, forKey: .googleMapsLink).flatMap(URL.init(string:))

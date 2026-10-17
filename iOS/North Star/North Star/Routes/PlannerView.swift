@@ -288,8 +288,33 @@ struct PlannerView: View {
                            in: Date.now...Date.now.addingTimeInterval(30 * 3600),
                            displayedComponents: [.date, .hourAndMinute])
             }
+            daylight
         }
         .padding(.horizontal, 16)
+    }
+
+    /// Sunrise and sunset on the day of the run, and a warning when the run starts
+    /// before sunrise or would end after sunset (from the time estimate).
+    @ViewBuilder
+    private var daylight: some View {
+        let start = model.startTime ?? .now
+        if let sun = Comfort.sunTimes(on: start, at: model.startCoordinate ?? Mumbai.centre) {
+            let pace = usualPace > 0 ? usualPace : 390
+            let end = start.addingTimeInterval(model.distanceKm * pace)
+            HStack(spacing: 14) {
+                Label(SkyScreen.time(sun.rise), systemImage: "sunrise")
+                Label(SkyScreen.time(sun.set), systemImage: "sunset")
+            }
+            .font(.subheadline.monospacedDigit())
+            .foregroundStyle(.secondary)
+            if start < sun.rise {
+                CardNote(text: "You'll start before sunrise. Choose lit, busy streets and wear something bright.")
+            } else if start < sun.set && end > sun.set {
+                CardNote(text: "You'll finish after sunset (about \(SkyScreen.time(end))). Choose lit, busy streets.")
+            } else if start >= sun.set {
+                CardNote(text: "It will be dark. Choose lit, busy streets and wear something bright.")
+            }
+        }
     }
 
     // MARK: - Pieces
