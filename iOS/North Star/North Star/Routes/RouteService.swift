@@ -142,7 +142,15 @@ struct RouteService {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         switch status {
         case 200:
-            return try ForecastService.decoder.decode(RoutePlan.self, from: data)
+            var plan = try ForecastService.decoder.decode(RoutePlan.self, from: data)
+            // Keep each route's own JSON, so a route can be saved exactly as it came.
+            if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let options = object["options"] as? [Any], options.count == plan.options.count {
+                for (index, item) in options.enumerated() {
+                    plan.options[index].rawJSON = try? JSONSerialization.data(withJSONObject: item)
+                }
+            }
+            return plan
         case 401:
             throw ServiceError.notConfigured
         case 422, 503:

@@ -1,5 +1,6 @@
 import Charts
 import MapKit
+import SwiftData
 import SwiftUI
 
 /// One route in detail: drag the pointer along it to see each street and how
@@ -7,6 +8,13 @@ import SwiftUI
 /// pharmacies, water and clinics near the route, and where to go after the run.
 struct RouteDetailView: View {
     let shape: RouteShape
+    /// When this route was saved (opened from Saved routes), so old forecasts are labelled.
+    var savedOn: Date? = nil
+
+    @Environment(\.modelContext) private var context
+    @State private var naming = false
+    @State private var routeName = ""
+    @State private var justSaved = false
 
     @State private var pointerKm: Double = 0
     @State private var stops: [NearbyPlaces.Stop] = []
@@ -61,7 +69,13 @@ struct RouteDetailView: View {
                     .padding(.horizontal, 16)
                     .id("pacePlan")
 
-                    JourneyCard(title: "When to go") { hourChart }.padding(.horizontal, 16)
+                    JourneyCard(title: "When to go") {
+                        if let savedOn {
+                            CardNote(text: "Saved \(savedOn.formatted(date: .abbreviated, time: .omitted)). Air and the best start time are from that day; plan again for today's.")
+                        }
+                        hourChart
+                    }
+                    .padding(.horizontal, 16)
 
                     JourneyCard {
                         Dropdown(title: "Along the way", summary: stopsSummary, isOpen: $showingStops) {
@@ -124,6 +138,28 @@ struct RouteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         #endif
+        .toolbar {
+            // Save the route to run it again (not shown for a route that is already saved).
+            if savedOn == nil, option.rawJSON != nil {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        routeName = SavedRouteNames.suggested(for: option)
+                        naming = true
+                    } label: {
+                        Image(systemName: justSaved ? "bookmark.fill" : "bookmark")
+                    }
+                    .disabled(justSaved)
+                    .accessibilityLabel(justSaved ? "Saved" : "Save this route")
+                }
+            }
+        }
+        .alert("Save this route", isPresented: $naming) {
+            TextField("Name", text: $routeName)
+            Button("Save") { saveRoute() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Find it again under Saved routes on the Plan tab.")
+        }
         .task {
             // Look up places near the finish at the same time as the stops along the way.
             if let finish = shape.finish {
@@ -143,6 +179,17 @@ struct RouteDetailView: View {
             for stop in stops { print("Stop:", stop.kind.rawValue, "|", stop.name, "|", Int(stop.offRouteM), "m off route at km", String(format: "%.1f", stop.atKm)) }
             #endif
         }
+    }
+
+    // MARK: - Saving
+
+    private func saveRoute() {
+        guard let json = option.rawJSON else { return }
+        let name = routeName.trimmingCharacters(in: .whitespaces)
+        context.insert(SavedRoute(name: name.isEmpty ? SavedRouteNames.suggested(for: option) : name,
+                                  distanceKm: option.distanceKm, kindLabel: SavedRouteNames.kind(of: option), json: json))
+        try? context.save()
+        withAnimation { justSaved = true }
     }
 
     // MARK: - Pieces
