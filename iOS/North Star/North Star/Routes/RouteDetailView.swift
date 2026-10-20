@@ -139,6 +139,22 @@ struct RouteDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         #endif
         .toolbar {
+            // Share my run: tell a friend the route and when you'll be back.
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    ShareLink(item: ShareRun.message(for: option, start: .now)) {
+                        Label("Starting now", systemImage: "figure.run")
+                    }
+                    if let best = option.suggestedStart, best.time > .now {
+                        ShareLink(item: ShareRun.message(for: option, start: best.time)) {
+                            Label("Starting at \(RouteText.time(best.time))", systemImage: "clock")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel("Share my run")
+            }
             // Save the route to run it again (not shown for a route that is already saved).
             if savedOn == nil, option.rawJSON != nil {
                 ToolbarItem(placement: .primaryAction) {
