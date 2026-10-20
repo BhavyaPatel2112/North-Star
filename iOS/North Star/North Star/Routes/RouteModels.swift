@@ -6,7 +6,7 @@ struct RoutePlan: Decodable {
     /// The forecast hour the routes were scored for.
     let forecastHour: Date?
     /// Up to 3 routes, cleanest first. Empty when nothing walkable was found.
-    let options: [RouteOption]
+    var options: [RouteOption]
     /// A plain-language note from the server when there are no options.
     let message: String?
     /// Where restaurant finishes came from: "google" (rated places), "apple (...)" or nil.
@@ -22,6 +22,8 @@ struct RoutePlan: Decodable {
 /// One suggested route.
 struct RouteOption: Decodable, Identifiable {
     let id = UUID()
+    /// The route exactly as the server sent it, kept so it can be saved and opened again.
+    var rawJSON: Data?
     /// "loop", "out_and_back" or "one_way".
     let kind: String
     /// A short description, for example "Mostly quiet streets".

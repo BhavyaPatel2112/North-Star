@@ -34,6 +34,8 @@ struct PlannerView: View {
                     JourneyHeader(title: "Plan a run.", subtitle: "Today's stretch.", trailing: closeButton)
                         .padding(.bottom, 4)
 
+                    SavedRoutesCard()
+
                     startCard
                     distanceCard
                     runCard

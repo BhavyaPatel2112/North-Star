@@ -12,6 +12,6 @@ import SwiftUI
                 .task { await RouteService().wake() }
         }
         // Saved places live in an on-device SwiftData store.
-        .modelContainer(for: SavedPlace.self)
+        .modelContainer(for: [SavedPlace.self, SavedRoute.self])
     }
 }
