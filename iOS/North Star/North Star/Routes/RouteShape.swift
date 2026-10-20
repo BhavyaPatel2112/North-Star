@@ -70,6 +70,42 @@ struct RouteShape {
         return best
     }
 
+    /// For live tracking: where a runner is along the route, looking only a little behind
+    /// and ahead of `lastKm`, so a loop or an out-and-back (the same street twice) does
+    /// not make the position jump to the other pass. Returns the distance along the
+    /// route (km) and how far the runner is from the line (metres).
+    func progress(of position: CLLocationCoordinate2D, lastKm: Double,
+                  behindKm: Double = 0.15, aheadKm: Double = 0.6) -> (atKm: Double, offRouteM: Double) {
+        let total = max(cumulative.last ?? 0, 1)
+        let scale = option.distanceKm / total * 1000          // line metres -> route metres
+        var best = (atKm: lastKm, offRouteM: Double.infinity)
+        for (a, b) in zip(option.line.indices, option.line.indices.dropFirst()) {
+            let kmA = cumulative[a] * scale / 1000, kmB = cumulative[b] * scale / 1000
+            guard kmB >= lastKm - behindKm, kmA <= lastKm + aheadKm else { continue }
+            // Closest point on this piece of the line (flat maths is fine over a few metres).
+            let p = option.line[a], q = option.line[b]
+            let kx = cos(p.latitude * .pi / 180)
+            let dx = (q.longitude - p.longitude) * kx, dy = q.latitude - p.latitude
+            let px = (position.longitude - p.longitude) * kx, py = position.latitude - p.latitude
+            let length2 = dx * dx + dy * dy
+            let t = length2 > 0 ? max(0, min(1, (px * dx + py * dy) / length2)) : 0
+            let closest = CLLocationCoordinate2D(latitude: p.latitude + dy * t, longitude: p.longitude + (q.longitude - p.longitude) * t)
+            let distance = Self.metres(closest, position)
+            if distance < best.offRouteM { best = (kmA + (kmB - kmA) * t, distance) }
+        }
+        return best
+    }
+
+    /// The compass direction of the line at `km` (degrees, 0 = north), looking 20 m ahead.
+    func bearing(atKm km: Double) -> Double? {
+        guard let a = point(atKm: km), let b = point(atKm: km + 0.02) else { return nil }
+        let dLon = (b.longitude - a.longitude) * .pi / 180
+        let lat1 = a.latitude * .pi / 180, lat2 = b.latitude * .pi / 180
+        let y = sin(dLon) * cos(lat2)
+        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+        return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
+    }
+
     // MARK: - Helpers
 
     static func metres(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {

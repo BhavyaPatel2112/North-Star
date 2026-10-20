@@ -8,8 +8,9 @@ import HealthKit
 /// Apple Health: Apple Watch, Garmin, Strava, Nike Run Club...), and only those
 /// since you set your North Star, each run once even if two apps saved it.
 /// Their distances are added up into
-/// "journeyKm", which the Journey tab shows. North Star only reads: it never
-/// writes to Apple Health, and nothing leaves the phone.
+/// "journeyKm", which the Journey tab shows. North Star writes to Apple Health only
+/// when you record a run with "Start this route" (the run, its distance and route).
+/// Nothing leaves the phone.
 enum RunTracker {
     static let kmKey = "journeyKm"            // kilometres run since the goal was set
     static let runsKey = "journeyRuns"        // how many runs that is
@@ -127,6 +128,49 @@ enum RunTracker {
             .sorted()
         guard !paces.isEmpty else { return }
         UserDefaults.standard.set(paces[paces.count / 2], forKey: usualPaceKey)
+    }
+
+    // MARK: - Saving runs recorded in North Star
+
+    /// What North Star saves: running workouts, their distance and their GPS route.
+    private static var saveTypes: Set<HKSampleType> {
+        [HKObjectType.workoutType(), distance, HKSeriesType.workoutRoute()]
+    }
+
+    /// Asks once for permission to save runs (shown when someone first starts a route).
+    static func requestSavePermission() async {
+        guard isAvailable else { return }
+        try? await store.requestAuthorization(toShare: saveTypes, read: readTypes)
+        UserDefaults.standard.set(true, forKey: connectedKey)
+    }
+
+    /// Saves a run recorded in North Star to Apple Health: a running workout with its
+    /// distance and GPS route. Returns false if Apple Health refused (no permission).
+    static func saveRun(start: Date, end: Date, metres: Double, track: [CLLocation]) async -> Bool {
+        guard isAvailable else { return false }
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = .running
+        configuration.locationType = .outdoor
+        let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: .local())
+        do {
+            try await builder.beginCollection(at: start)
+            let sample = HKQuantitySample(type: distance, quantity: HKQuantity(unit: .meter(), doubleValue: metres),
+                                          start: start, end: end)
+            try await builder.addSamples([sample])
+            try await builder.endCollection(at: end)
+            guard let workout = try await builder.finishWorkout() else { return false }
+            if track.count > 1 {
+                let route = HKWorkoutRouteBuilder(healthStore: store, device: .local())
+                try await route.insertRouteData(track)
+                _ = try await route.finishRoute(with: workout, metadata: nil)
+            }
+            return true
+        } catch {
+            #if DEBUG
+            print("Saving the run to Apple Health failed:", error.localizedDescription)
+            #endif
+            return false
+        }
     }
 
     // MARK: - The runs journal
