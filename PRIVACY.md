@@ -1,6 +1,6 @@
 # North Star privacy policy
 
-Last updated: 13 October 2026
+Last updated: 20 October 2026
 
 North Star helps runners in Mumbai plan the best route and time to run. It is
 built to collect as little as possible. There are no accounts, no ads and no
@@ -18,9 +18,19 @@ tracking.
 - North Star reads your running workouts (date, distance, time, heart rate and
   the route your watch or phone recorded) to move you along your journey towards
   your goal and to show your runs in the app.
-- It only reads. It never writes to Apple Health.
+- When you record a run with "Start this route", North Star saves that run to
+  Apple Health (its time, distance and route) so it counts like any other run.
+  It saves nothing else.
 - Your health data stays on your phone. It is never sent to our server or to
   anyone else, and it is never used for advertising.
+
+**Your run's GPS track** (only while you run a route you started)
+- Used on your phone to show your progress and directions, and saved to Apple
+  Health with the run. It is never sent to our server.
+
+**Sharing a run**
+- "Share my run" opens your phone's share sheet with a message you send yourself
+  (for example on WhatsApp). North Star does not send it or keep a copy.
 
 **Saved places and your goal**
 - Places you save, your distance goal and your progress are stored only on

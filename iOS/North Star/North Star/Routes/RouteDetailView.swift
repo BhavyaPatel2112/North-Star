@@ -15,6 +15,8 @@ struct RouteDetailView: View {
     @State private var naming = false
     @State private var routeName = ""
     @State private var justSaved = false
+    /// The live run screen ("Start this route").
+    @State private var running = false
 
     @State private var pointerKm: Double = 0
     @State private var stops: [NearbyPlaces.Stop] = []
@@ -44,6 +46,14 @@ struct RouteDetailView: View {
                              afterRun: afterRun)
                         .frame(height: geometry.size.height * 0.42 + geometry.safeAreaInsets.top)
                         .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 32, bottomTrailingRadius: 32, style: .continuous))
+
+                    Button {
+                        running = true
+                    } label: {
+                        Label("Start this route", systemImage: "figure.run")
+                    }
+                    .buttonStyle(PillButtonStyle())
+                    .padding(.horizontal, 16)
 
                     JourneyCard { pointerControl }.padding(.horizontal, 16)
 
@@ -169,6 +179,9 @@ struct RouteDetailView: View {
                 }
             }
         }
+        #if os(iOS)
+        .fullScreenCover(isPresented: $running) { LiveRunView(shape: shape) }
+        #endif
         .alert("Save this route", isPresented: $naming) {
             TextField("Name", text: $routeName)
             Button("Save") { saveRoute() }
